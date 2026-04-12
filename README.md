@@ -26,8 +26,8 @@ Waggle's key advantage is **token efficiency with structured context**:
 
 | Without waggle-mcp | With waggle-mcp |
 |--------------------------|----------------------|
-| "What did we decide about the DB schema?" → ❌ no idea | ✅ Recalls the decision node, when it was made, and what it contradicts |
 | Context stuffed into a 200k-token prompt | **~4× fewer tokens** — compact subgraph, only relevant nodes retrieved |
+| "What did we decide about the DB schema?" → ❌ no idea | ✅ Recalls the decision node, when it was made, and what it contradicts |
 | Flat bullet-list memory | Typed edges: `relates_to`, `contradicts`, `depends_on`, `updates`… |
 | One session, one agent | Multi-tenant, multi-session, multi-agent |
 
@@ -259,9 +259,17 @@ The tradeoff is honest: the chunked baseline achieves 100% Hit@k on this corpus 
 
 Fixture set: 22 node pairs — 11 true duplicates (synonym, paraphrase, domain-level equivalence) and 11 false friends (same domain, distinct semantics). Balanced to test both false-positive and false-negative failure modes.
 
-Best measured threshold: **0.82 → 12/22 = 55%**
+The dedup pipeline runs three layers in order:
+1. **Exact string match** — normalized content or label equality (free, always run)
+2. **Substring containment** — catches restatements where one phrase is a subset of the other
+3. **Semantic similarity** — cosine via `all-MiniLM-L6-v2`:
+   - Type-aware threshold: `decision`/`preference` nodes merge at 0.82; `fact` at 0.92; `entity` at 0.97
+   - Jaccard-boosted path: if bag-of-words overlap ≥ 0.35 AND cosine ≥ (type threshold − 0.05), treat as duplicate
+   - Conservative cosine fallback at global `dedup_similarity_threshold`
 
-Threshold sweep:
+Best measured result on the expanded fixture set: **12/22 = 55%**
+
+Threshold sweep (single uniform threshold, overrides type-aware logic in harness):
 
 | Threshold | Result | Notes |
 |-----------|--------|-------|
@@ -273,7 +281,12 @@ Threshold sweep:
 | 0.95 | 11/22 = 50% | |
 | 0.97 | 11/22 = 50% | Current product default |
 
-The 55% ceiling reflects a known limitation: `all-MiniLM-L6-v2` cosine similarity alone cannot reliably distinguish near-synonym true duplicates from false friends at the sentence level. This is a planned improvement area — candidate approaches include label-pair re-ranking and bi-encoder fine-tuning on domain data.
+**Root cause of the 55% ceiling:** `all-MiniLM-L6-v2` sentence embeddings cannot reliably separate near-synonym true duplicates from same-domain false friends at the cosine level. For example, "We decided to use PostgreSQL" and "We decided to use MySQL" score nearly as similar as two paraphrases of the PostgreSQL decision, because both sentences share the same structural template.
+
+**Planned improvements:**
+- Entity-type extraction: detect the named technology and add it to the merge key
+- Bi-encoder fine-tuning on domain-specific duplicate pairs
+- Production dedup logging to build a real-world fixture set from user data
 
 </details>
 

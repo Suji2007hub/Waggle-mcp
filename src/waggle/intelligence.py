@@ -120,6 +120,44 @@ def normalize_text(value: str) -> str:
     return " ".join(value.lower().split())
 
 
+def content_token_jaccard(a: str, b: str) -> float:
+    """Bag-of-content-words Jaccard similarity, stopwords excluded.
+
+    Returns a value in [0, 1]. A score >= 0.5 strongly indicates the two texts
+    are talking about the same thing even when phrased differently.
+    Used as a cheap pre-filter before cosine similarity.
+    """
+    tokens_a = tokenize_text(a)
+    tokens_b = tokenize_text(b)
+    if not tokens_a or not tokens_b:
+        return 0.0
+    return len(tokens_a & tokens_b) / len(tokens_a | tokens_b)
+
+
+# Per-type thresholds reflect semantic risk:
+# - decision/preference nodes are high-confidence, narrow-topic — merge aggressively
+# - fact nodes carry precise numeric/technical values — merge conservatively
+# - concept/entity are structural anchors — be very conservative
+_TYPE_DEDUP_THRESHOLD: dict[NodeType, float] = {
+    NodeType.DECISION:   0.82,
+    NodeType.PREFERENCE: 0.82,
+    NodeType.NOTE:       0.85,
+    NodeType.QUESTION:   0.88,
+    NodeType.FACT:       0.92,
+    NodeType.CONCEPT:    0.95,
+    NodeType.ENTITY:     0.97,
+}
+
+
+def type_aware_dedup_threshold(node_type: NodeType, *, default: float = 0.97) -> float:
+    """Return a per-type cosine similarity threshold for deduplication.
+
+    Lower values merge more aggressively. Higher values are more conservative.
+    Falls back to *default* if the type has no explicit mapping.
+    """
+    return _TYPE_DEDUP_THRESHOLD.get(node_type, default)
+
+
 def tokenize_text(value: str) -> set[str]:
     return {
         token

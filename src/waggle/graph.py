@@ -18,6 +18,7 @@ from waggle.errors import AuthenticationError, ValidationFailure
 from waggle.extractor import EXTRACT_BACKEND, extract_with_llm
 from waggle.intelligence import (
     compatible_node_types,
+    content_token_jaccard,
     detect_conflict_reason,
     extract_conversation_candidates,
     infer_label,
@@ -34,6 +35,7 @@ from waggle.intelligence import (
     summarize_topic,
     temporal_score_adjustment,
     tokenize_text,
+    type_aware_dedup_threshold,
     within_time_window,
 )
 from waggle.models import (
@@ -1135,6 +1137,9 @@ class MemoryGraph:
 
         normalized_label = normalize_text(node.label)
         normalized_content = normalize_text(node.content)
+        # Type-aware cosine threshold — decisions merge at 0.82, facts at 0.92, etc.
+        type_threshold = type_aware_dedup_threshold(node.node_type,
+                                                    default=self.dedup_similarity_threshold)
         best_match: tuple[Node, float] | None = None
 
         for row in rows:
@@ -1144,11 +1149,18 @@ class MemoryGraph:
             existing_label = normalize_text(existing_node.label)
             existing_content = normalize_text(existing_node.content)
 
+            # ── Layer 1: exact string matches (free, always run) ─────────────
             if normalized_content == existing_content:
                 return existing_node, "exact_content", 1.0
             if normalized_label == existing_label:
                 return existing_node, "exact_label", 1.0
 
+            # ── Layer 2: substring containment (cheap, catches rephrased subsets)
+            if len(normalized_content) >= 10 and len(existing_content) >= 10:
+                if normalized_content in existing_content or existing_content in normalized_content:
+                    return existing_node, "content_substring", 0.98
+
+            # ── Layer 3: semantic similarity (expensive — compute embedding once) ─
             existing_embedding = self.embedding_model.from_bytes(row["embedding"])
             similarity = self.embedding_model.cosine_similarity(embedding, existing_embedding)
             label_score = label_similarity(node.label, existing_node.label)
@@ -1161,6 +1173,15 @@ class MemoryGraph:
             if label_score >= 0.92 and similarity >= max(self.dedup_same_label_threshold - 0.2, 0.6):
                 return existing_node, "label_entity_match", similarity
 
+            # ── Layer 3b: Jaccard-boosted merge (type-aware lower threshold) ──
+            # If content words overlap significantly AND cosine is high for the
+            # node type, treat as duplicate — catches paraphrase true-dups.
+            jaccard = content_token_jaccard(node.content, existing_node.content)
+            boosted_threshold = max(type_threshold - 0.05, 0.70)
+            if jaccard >= 0.35 and similarity >= boosted_threshold:
+                return existing_node, "jaccard_boosted_similarity", similarity
+
+            # ── Layer 3c: pure cosine fallback (conservative global threshold) ─
             if similarity >= self.dedup_similarity_threshold:
                 if best_match is None or similarity > best_match[1]:
                     best_match = (existing_node, similarity)
