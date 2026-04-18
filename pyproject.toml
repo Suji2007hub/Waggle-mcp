@@ -1,6 +1,6 @@
 [project]
 name = "waggle-mcp"
-version = "0.1.4"
+version = "0.1.5"
 description = "MCP server that gives LLMs persistent graph-structured memory"
 readme = "README.md"
 license = { text = "MIT" }
