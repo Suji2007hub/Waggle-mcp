@@ -68,6 +68,45 @@ docker run --rm -p 8080:8080 \
 }
 ```
 
+### Claude Code
+
+Claude Code supports MCP servers directly. The two practical ways to add Waggle are:
+
+```bash
+# Project-local (default)
+claude mcp add waggle --scope local --env WAGGLE_TRANSPORT=stdio --env WAGGLE_BACKEND=sqlite --env WAGGLE_DB_PATH=~/.waggle/memory.db --env WAGGLE_DEFAULT_TENANT_ID=local-default --env WAGGLE_MODEL=all-MiniLM-L6-v2 -- /path/to/.venv/bin/python -m waggle.server
+
+# Shared project config in .mcp.json
+claude mcp add waggle --scope project --env WAGGLE_TRANSPORT=stdio --env WAGGLE_BACKEND=sqlite --env WAGGLE_DB_PATH=~/.waggle/memory.db --env WAGGLE_DEFAULT_TENANT_ID=local-default --env WAGGLE_MODEL=all-MiniLM-L6-v2 -- /path/to/.venv/bin/python -m waggle.server
+```
+
+Equivalent `.mcp.json` entry:
+
+```json
+{
+  "mcpServers": {
+    "waggle": {
+      "command": "/path/to/.venv/bin/python",
+      "args": ["-m", "waggle.server"],
+      "env": {
+        "WAGGLE_TRANSPORT": "stdio",
+        "WAGGLE_BACKEND": "sqlite",
+        "WAGGLE_DB_PATH": "~/.waggle/memory.db",
+        "WAGGLE_DEFAULT_TENANT_ID": "local-default",
+        "WAGGLE_MODEL": "all-MiniLM-L6-v2"
+      }
+    }
+  }
+}
+```
+
+Useful Claude Code commands after setup:
+
+```bash
+claude mcp list
+claude mcp get waggle
+```
+
 ### Codex
 
 ```toml
@@ -84,6 +123,57 @@ env     = {
 ```
 
 A pre-filled example is in [codex_config.example.toml](../codex_config.example.toml).
+
+### Cursor
+
+Cursor supports MCP in both the editor and the CLI. In the editor, open `Cursor Settings -> Features -> MCP Servers` and add a new stdio server with:
+
+- Name: `waggle`
+- Command: `/path/to/.venv/bin/python`
+- Arguments: `-m`, `waggle.server`
+
+Environment variables:
+
+```text
+WAGGLE_TRANSPORT=stdio
+WAGGLE_BACKEND=sqlite
+WAGGLE_DB_PATH=~/.waggle/memory.db
+WAGGLE_DEFAULT_TENANT_ID=local-default
+WAGGLE_MODEL=all-MiniLM-L6-v2
+```
+
+If you prefer JSON configuration, use the same `mcpServers` object shape shown for Claude Desktop above.
+
+### Antigravity
+
+Antigravity supports custom MCP servers through its MCP manager.
+
+Steps:
+- Open the agent panel
+- Open the `...` menu
+- Choose `Manage MCP Servers`
+- Choose `View raw config`
+- Add Waggle to the config file
+
+Configuration:
+
+```json
+{
+  "mcpServers": {
+    "waggle": {
+      "command": "/path/to/.venv/bin/python",
+      "args": ["-m", "waggle.server"],
+      "env": {
+        "WAGGLE_TRANSPORT": "stdio",
+        "WAGGLE_BACKEND": "sqlite",
+        "WAGGLE_DB_PATH": "~/.waggle/memory.db",
+        "WAGGLE_DEFAULT_TENANT_ID": "local-default",
+        "WAGGLE_MODEL": "all-MiniLM-L6-v2"
+      }
+    }
+  }
+}
+```
 
 ## Using Waggle In MCP Clients
 
