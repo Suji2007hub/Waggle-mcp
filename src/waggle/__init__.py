@@ -33,6 +33,20 @@ from waggle.models import (
     TopicCluster,
     TopicResult,
 )
+from waggle.orchestrator import (
+    AsyncMemoryOrchestrator,
+    ConversationTurn,
+    IngestPlan,
+    MemoryPolicy,
+    MemoryScope,
+    RetrievePlan,
+    RetrieveRequest,
+)
+from waggle.chat_runtime import (
+    ModelAdapter,
+    OrchestratedChatRuntime,
+    RuntimeTurnResult,
+)
 
 try:  # pragma: no cover
     from waggle.neo4j_graph import Neo4jMemoryGraph
@@ -70,6 +84,16 @@ __all__ = [
     "TimelineResult",
     "TopicCluster",
     "TopicResult",
+    "AsyncMemoryOrchestrator",
+    "ConversationTurn",
+    "IngestPlan",
+    "MemoryPolicy",
+    "MemoryScope",
+    "RetrievePlan",
+    "RetrieveRequest",
+    "ModelAdapter",
+    "OrchestratedChatRuntime",
+    "RuntimeTurnResult",
 ]
 
 try:  # pragma: no cover

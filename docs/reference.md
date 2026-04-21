@@ -222,6 +222,22 @@ For a built-in CLI explainer, run:
 waggle-mcp features
 ```
 
+## Automatic memory orchestration
+
+For production behavior where the model/runtime handles memory calls automatically (instead of users manually invoking tools), use the event-driven orchestration pattern documented in [memory-orchestration.md](./memory-orchestration.md).
+
+The reference implementation is [orchestrator.py](../src/waggle/orchestrator.py) plus [chat_runtime.py](../src/waggle/chat_runtime.py) and provides:
+
+- async ingestion queue (`on_assistant_turn`)
+- pre-model retrieval with token budget (`build_context`)
+- scope isolation via `tenant/project/agent/session/model`
+- concrete chat loop wrapper (`OrchestratedChatRuntime`)
+
+The MCP server also exposes this behavior as:
+
+- prompt: `waggle_memory_policy`
+- resource: `graph://memory-policy`
+
 ## Environment variables
 
 ### Core

@@ -95,6 +95,25 @@ REQUIRED_RUNTIME_METHODS = (
     "resolve_conflict",
 )
 
+MEMORY_AUTOMATION_POLICY = """Waggle automatic memory policy
+
+The user should not manually manage memory. The assistant/runtime is responsible for using Waggle tools.
+
+Before answering:
+- Use prime_context at the start of a new session when project, agent, or session scope is known.
+- Use query_graph before answering questions that may depend on prior decisions, preferences, constraints, project state, or earlier conversation context.
+- Keep retrieval narrow: start with max_nodes 8-12, max_depth 1-2, retrieval_mode graph. Use fusion only when transcript replay is needed.
+
+After answering:
+- Use observe_conversation after completed turns that contain durable information: decisions, preferences, constraints, requirements, user corrections, project facts, or meaningful task outcomes.
+- Do not call store_node for normal conversation memory unless the user explicitly gives one atomic fact and no inference is needed.
+- Skip memory writes for acknowledgements, greetings, short chatter, or failed/aborted work.
+
+Scoping:
+- Always pass stable project, agent_id, and session_id when available.
+- Prefer scoped memory over global memory in shared workspaces.
+"""
+
 
 def _object_input_schema(
     properties: dict[str, Any] | None = None,
@@ -207,6 +226,14 @@ class WaggleServer:
         async def read_resource(uri: Any) -> str:
             return self.read_resource_text(str(uri))
 
+        @self.server.list_prompts()
+        async def list_prompts() -> list[types.Prompt]:
+            return self.build_prompts()
+
+        @self.server.get_prompt()
+        async def get_prompt(name: str, arguments: dict[str, str] | None) -> types.GetPromptResult:
+            return self.get_prompt_result(name, arguments or {})
+
     def build_tools(self) -> list[types.Tool]:
         return [
             types.Tool(
@@ -270,7 +297,8 @@ class WaggleServer:
             types.Tool(
                 name="query_graph",
                 description=(
-                    "Search the memory graph for information relevant to a natural-language query. "
+                    "Automatically search the memory graph before answering questions that may depend on prior context, "
+                    "user preferences, project decisions, constraints, or earlier conversation state. "
                     "Returns a serialized subgraph with matching nodes and their connected neighborhood. "
                     "Understands temporal references such as 'recently', 'latest', 'originally', and 'last week'."
                 ),
@@ -465,8 +493,9 @@ class WaggleServer:
             types.Tool(
                 name="observe_conversation",
                 description=(
-                    "Observe a completed conversation turn, extract important information, and store it automatically. "
-                    "Use after user-assistant turns that contain preferences, decisions, facts, or tasks. Returns stored nodes and conflicts."
+                    "Automatically observe a completed user-assistant turn, extract durable information, and store it in the graph. "
+                    "Call this after turns containing preferences, decisions, constraints, requirements, corrections, project facts, "
+                    "or meaningful task outcomes. Do not ask the user to trigger this."
                 ),
                 inputSchema=_object_input_schema(
                     {
@@ -496,7 +525,7 @@ class WaggleServer:
             types.Tool(
                 name="prime_context",
                 description=(
-                    "Build a compact context brief for the start of a new conversation. "
+                    "Automatically build a compact context brief at the start of a scoped conversation or before work that needs continuity. "
                     "Use to hydrate an assistant with the most relevant scoped memories. Returns summary text plus nodes and edges."
                 ),
                 inputSchema=_object_input_schema(_scope_properties()),
@@ -661,6 +690,60 @@ class WaggleServer:
             ),
         ]
 
+    def build_prompts(self) -> list[types.Prompt]:
+        return [
+            types.Prompt(
+                name="waggle_memory_policy",
+                title="Waggle Memory Policy",
+                description=(
+                    "Instructions for automatic memory retrieval and ingestion. "
+                    "Use this prompt to make the assistant handle memory without user-triggered tool calls."
+                ),
+                arguments=[
+                    types.PromptArgument(
+                        name="project",
+                        description="Optional project/workspace scope to pass to Waggle tools.",
+                        required=False,
+                    ),
+                    types.PromptArgument(
+                        name="agent_id",
+                        description="Optional agent/client identifier to pass to Waggle tools.",
+                        required=False,
+                    ),
+                    types.PromptArgument(
+                        name="session_id",
+                        description="Optional conversation/session identifier to pass to Waggle tools.",
+                        required=False,
+                    ),
+                ],
+            )
+        ]
+
+    def get_prompt_result(self, name: str, arguments: dict[str, str]) -> types.GetPromptResult:
+        if name != "waggle_memory_policy":
+            raise ValidationFailure(f"Unknown prompt: {name}")
+        project = str(arguments.get("project", "")).strip()
+        agent_id = str(arguments.get("agent_id", "")).strip()
+        session_id = str(arguments.get("session_id", "")).strip()
+        scope_lines = []
+        if project:
+            scope_lines.append(f"- project: {project}")
+        if agent_id:
+            scope_lines.append(f"- agent_id: {agent_id}")
+        if session_id:
+            scope_lines.append(f"- session_id: {session_id}")
+        scope_text = "\n".join(scope_lines) if scope_lines else "- no explicit scope supplied"
+        text = f"{MEMORY_AUTOMATION_POLICY}\nSuggested scope for this conversation:\n{scope_text}\n"
+        return types.GetPromptResult(
+            description="Automatic Waggle memory policy.",
+            messages=[
+                types.PromptMessage(
+                    role="user",
+                    content=types.TextContent(type="text", text=text),
+                )
+            ],
+        )
+
     def _get_request(self) -> Request | None:
         try:
             current = request_ctx.get()
@@ -686,6 +769,12 @@ class WaggleServer:
             resources=[
                 types.Resource(uri="graph://stats", name="Graph Stats", description="Current graph statistics.", mimeType="text/plain"),
                 types.Resource(uri="graph://recent", name="Recent Graph Nodes", description="The 10 most recently updated nodes.", mimeType="text/plain"),
+                types.Resource(
+                    uri="graph://memory-policy",
+                    name="Automatic Memory Policy",
+                    description="Policy for when assistants should retrieve and write Waggle memory automatically.",
+                    mimeType="text/plain",
+                ),
             ]
         )
 
@@ -695,6 +784,8 @@ class WaggleServer:
             return serialize_stats(graph.get_stats())
         if uri == "graph://recent":
             return serialize_recent_nodes(graph.list_recent_nodes(limit=10))
+        if uri == "graph://memory-policy":
+            return MEMORY_AUTOMATION_POLICY
         raise ValidationFailure(f"Unknown resource: {uri}")
 
     def initialization_options(self) -> InitializationOptions:

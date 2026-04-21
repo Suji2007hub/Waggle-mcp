@@ -103,6 +103,37 @@ def test_tool_schemas_are_glama_friendly(tmp_path: Path) -> None:
             assert field_schema.get("description"), f"{tool.name}.{field_name} is missing a description"
 
 
+def test_memory_policy_prompt_and_resource(tmp_path: Path) -> None:
+    app = make_app(tmp_path)
+
+    prompts = app.build_prompts()
+    assert [prompt.name for prompt in prompts] == ["waggle_memory_policy"]
+
+    prompt_result = app.get_prompt_result(
+        "waggle_memory_policy",
+        {"project": "MCP", "agent_id": "codex", "session_id": "thread-1"},
+    )
+    prompt_text = prompt_result.messages[0].content.text
+
+    assert "The user should not manually manage memory" in prompt_text
+    assert "Use query_graph before answering" in prompt_text
+    assert "Use observe_conversation after completed turns" in prompt_text
+    assert "project: MCP" in prompt_text
+
+    resource_text = app.read_resource_text("graph://memory-policy")
+    assert "Waggle automatic memory policy" in resource_text
+    assert "Do not call store_node for normal conversation memory" in resource_text
+
+
+def test_memory_tools_describe_automatic_usage(tmp_path: Path) -> None:
+    app = make_app(tmp_path)
+    tools = {tool.name: tool for tool in app.build_tools()}
+
+    assert "Automatically search the memory graph before answering" in tools["query_graph"].description
+    assert "Do not ask the user to trigger this" in tools["observe_conversation"].description
+    assert "Automatically build a compact context brief" in tools["prime_context"].description
+
+
 def test_export_graph_html_tool(tmp_path: Path) -> None:
     app = make_app(tmp_path)
     app.handle_tool_call(

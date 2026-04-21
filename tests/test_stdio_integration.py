@@ -51,14 +51,21 @@ async def test_server_stdio_initialize_and_basic_calls(tmp_path: Path) -> None:
             }
 
             resources_result = await session.list_resources()
-            assert len(resources_result.resources) == 2
+            assert len(resources_result.resources) == 3
             assert {str(resource.uri) for resource in resources_result.resources} == {
                 "graph://stats",
                 "graph://recent",
+                "graph://memory-policy",
             }
+
+            prompts_result = await session.list_prompts()
+            assert {prompt.name for prompt in prompts_result.prompts} == {"waggle_memory_policy"}
 
             stats_result = await session.call_tool("get_stats", {})
             assert "Memory Graph Stats" in stats_result.content[0].text
 
             resource_result = await session.read_resource("graph://stats")
             assert "Memory Graph Stats" in resource_result.contents[0].text
+
+            policy_resource = await session.read_resource("graph://memory-policy")
+            assert "The user should not manually manage memory" in policy_resource.contents[0].text
