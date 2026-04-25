@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
@@ -41,11 +42,81 @@ def make_graph(tmp_path: Path) -> MemoryGraph:
     return MemoryGraph(tmp_path / "memory.db", FakeEmbeddingModel())
 
 
+def test_memory_graph_migrates_legacy_nodes_before_creating_indexes(tmp_path: Path) -> None:
+    db_path = tmp_path / "legacy-memory.db"
+    connection = sqlite3.connect(db_path)
+    connection.executescript(
+        """
+        CREATE TABLE nodes (
+            id TEXT PRIMARY KEY,
+            tenant_id TEXT NOT NULL DEFAULT 'local-default',
+            agent_id TEXT DEFAULT '',
+            project TEXT DEFAULT '',
+            session_id TEXT DEFAULT '',
+            label TEXT NOT NULL,
+            content TEXT NOT NULL,
+            node_type TEXT NOT NULL,
+            tags TEXT DEFAULT '[]',
+            embedding BLOB,
+            source_prompt TEXT DEFAULT '',
+            evidence_records TEXT DEFAULT '[]',
+            valid_from TEXT DEFAULT NULL,
+            valid_to TEXT DEFAULT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            access_count INTEGER DEFAULT 0,
+            metadata TEXT DEFAULT '{}'
+        );
+        CREATE TABLE edges (
+            id TEXT PRIMARY KEY,
+            tenant_id TEXT NOT NULL DEFAULT 'local-default',
+            source_id TEXT NOT NULL,
+            target_id TEXT NOT NULL,
+            relationship TEXT NOT NULL,
+            weight REAL DEFAULT 1.0,
+            metadata TEXT DEFAULT '{}',
+            created_at TEXT NOT NULL
+        );
+        CREATE TABLE transcript_records (
+            id TEXT PRIMARY KEY,
+            tenant_id TEXT NOT NULL DEFAULT 'local-default',
+            agent_id TEXT DEFAULT '',
+            project TEXT DEFAULT '',
+            session_id TEXT DEFAULT '',
+            observed_at TEXT NOT NULL,
+            turn_index INTEGER NOT NULL DEFAULT 0,
+            role TEXT NOT NULL DEFAULT '',
+            transcript_text TEXT NOT NULL,
+            embedding BLOB,
+            metadata TEXT DEFAULT '{}'
+        );
+        """
+    )
+    connection.close()
+
+    graph = MemoryGraph(db_path, FakeEmbeddingModel())
+
+    with graph._lock, graph._connect() as migrated:
+        node_columns = {row["name"] for row in migrated.execute("PRAGMA table_info(nodes)").fetchall()}
+        node_indexes = {row["name"] for row in migrated.execute("PRAGMA index_list(nodes)").fetchall()}
+
+    assert "context_window_id" in node_columns
+    assert "idx_nodes_context_window" in node_indexes
+
+
 def _set_node_timestamp(graph: MemoryGraph, node_id: str, timestamp: datetime) -> None:
     with graph._lock, graph._connect() as connection:
         connection.execute(
             "UPDATE nodes SET created_at = ?, updated_at = ? WHERE id = ?",
             (timestamp.isoformat(), timestamp.isoformat(), node_id),
+        )
+
+
+def _set_node_embedding_null(graph: MemoryGraph, node_id: str) -> None:
+    with graph._lock, graph._connect() as connection:
+        connection.execute(
+            "UPDATE nodes SET embedding = NULL WHERE id = ?",
+            (node_id,),
         )
 
 
@@ -585,6 +656,33 @@ def test_prime_context_prefers_nodes_from_recent_transcript_sessions(tmp_path: P
 
     assert result.nodes
     assert result.nodes[0].label == "Active Session Decision"
+
+
+def test_prime_context_ignores_non_embeddable_seed_nodes(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    timestamp = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    seed = graph.add_node(
+        label="Non-Embeddable Seed",
+        content="This node should be ignored during prime context expansion.",
+        node_type=NodeType.DECISION,
+        project="alpha",
+        session_id="sess-seed",
+    ).node
+    anchor = graph.add_node(
+        label="Embeddable Anchor",
+        content="This node should still allow prime context to succeed.",
+        node_type=NodeType.DECISION,
+        project="alpha",
+        session_id="sess-anchor",
+    ).node
+    _set_node_timestamp(graph, seed.id, timestamp)
+    _set_node_timestamp(graph, anchor.id, timestamp)
+    _set_node_embedding_null(graph, seed.id)
+
+    result = graph.prime_context(project="alpha", max_nodes=5)
+
+    assert "Prime context" in result.summary or result.summary
+    assert all(node.id != seed.id for node in result.nodes)
 
 
 def test_export_context_bundle_fusion_includes_replay_hits(tmp_path: Path) -> None:

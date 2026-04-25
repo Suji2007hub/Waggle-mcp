@@ -363,7 +363,9 @@ CREATE TABLE IF NOT EXISTS transcript_records (
     metadata TEXT DEFAULT '{}',
     message_identity TEXT DEFAULT NULL
 );
+"""
 
+INDEX_SQL = """
 CREATE INDEX IF NOT EXISTS idx_nodes_type ON nodes(node_type);
 CREATE INDEX IF NOT EXISTS idx_nodes_created ON nodes(created_at);
 CREATE INDEX IF NOT EXISTS idx_nodes_tenant_type ON nodes(tenant_id, node_type);
@@ -541,6 +543,7 @@ class MemoryGraph:
         with self._lock, self._connect() as connection:
             connection.executescript(SCHEMA_SQL)
             self._migrate_legacy_schema(connection)
+            connection.executescript(INDEX_SQL)
             created_at = utc_now().isoformat()
             connection.execute(
                 """
@@ -3763,10 +3766,17 @@ class MemoryGraph:
             if not nodes_by_id:
                 return PrimeContextResult(project=project, summary="No scoped nodes found for priming.")
 
+            # Seeds can include non-embeddable nodes (e.g., recently touched items). Filter to embeddable
+            # nodes to avoid KeyError when scoring/expanding.
+            scoped_seed_ids = [seed_id for seed_id in seed_ids if seed_id in nodes_by_id]
+            if not scoped_seed_ids:
+                # Fall back to a small set of recent embeddable nodes when none of the seeds are usable.
+                scoped_seed_ids = list(nodes_by_id.keys())[:5]
+
             # Expand from seeds using relation-aware traversal
             max_depth = 2
             expanded_depths, expansion_metadata = self._expand_node_depths_with_context(
-                graph, seed_ids, max_depth
+                graph, scoped_seed_ids, max_depth
             )
 
             # Build candidate nodes from expansion
@@ -3779,22 +3789,26 @@ class MemoryGraph:
                 return PrimeContextResult(project=project, summary="Expansion produced no candidate nodes.")
 
             # Score with relation-aware ranking (no natural language query)
-            similarity_by_id = {nid: 0.0 for nid in expanded_depths}
-            lexical_by_id = {nid: 0.0 for nid in expanded_depths}
-            negation_boost_by_id = {nid: 0.0 for nid in expanded_depths}
+            expanded_ids_in_scope = [nid for nid in expanded_depths if nid in nodes_by_id]
+            similarity_by_id = {nid: 0.0 for nid in expanded_ids_in_scope}
+            lexical_by_id = {nid: 0.0 for nid in expanded_ids_in_scope}
+            negation_boost_by_id = {nid: 0.0 for nid in expanded_ids_in_scope}
             transcript_session_scores = self._recent_transcript_session_scores(
                 agent_id=agent_id,
                 project=project,
                 session_id=active_session_id,
             )
             # Boost seed IDs synthetically
-            for seed_id in seed_ids:
+            for seed_id in scoped_seed_ids:
                 if seed_id in similarity_by_id:
                     similarity_by_id[seed_id] = 0.5
-            for node_id in similarity_by_id:
+            for node_id in list(similarity_by_id.keys()):
+                node = nodes_by_id.get(node_id)
+                if node is None:
+                    continue
                 similarity_by_id[node_id] = self._blend_session_signal(
                     base_similarity=similarity_by_id[node_id],
-                    session_signal=transcript_session_scores.get(nodes_by_id[node_id].session_id, 0.0),
+                    session_signal=transcript_session_scores.get(node.session_id, 0.0),
                     session_weight=0.35,
                 )
 
