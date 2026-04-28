@@ -276,6 +276,7 @@ class AbhiExportResult(BaseModel):
     node_count: int = 0
     edge_count: int = 0
     content_hash: str = ""
+    executed_actions: list[str] = Field(default_factory=list)
 
 
 class ImportResult(BaseModel):
@@ -298,6 +299,7 @@ class AbhiImportResult(BaseModel):
     edges_created: int = 0
     edges_updated: int = 0
     hash_verified: bool = False
+    executed_actions: list[str] = Field(default_factory=list)
 
 
 class AbhiValidationResult(BaseModel):
@@ -324,6 +326,9 @@ class AbhiInspectResult(BaseModel):
     version_count: int = 0
     query_count: int = 0
     event_count: int = 0
+    chunk_count: int = 0
+    load_strategy: str = "full"
+    preload_chunks: list[str] = Field(default_factory=list)
     content_hash: str = ""
 
 
@@ -352,6 +357,34 @@ class AbhiMergeResult(BaseModel):
     edges_merged: int = 0
     conflicts: list[str] = Field(default_factory=list)
     content_hash: str = ""
+    executed_actions: list[str] = Field(default_factory=list)
+
+
+class AbhiQueryResult(BaseModel):
+    input_path: str
+    query_id: str = ""
+    name: str = ""
+    query: str = ""
+    summary: str = ""
+    node_count: int = 0
+    edge_count: int = 0
+    node_ids: list[str] = Field(default_factory=list)
+    edge_ids: list[str] = Field(default_factory=list)
+    chunk_ids: list[str] = Field(default_factory=list)
+    scanned_chunk_count: int = 0
+    executed_actions: list[str] = Field(default_factory=list)
+
+
+class AbhiChunkLoadResult(BaseModel):
+    input_path: str
+    chunk_ids: list[str] = Field(default_factory=list)
+    load_strategy: str = "full"
+    node_count: int = 0
+    edge_count: int = 0
+    available_chunk_count: int = 0
+    query: str = ""
+    node_ids: list[str] = Field(default_factory=list)
+    edge_ids: list[str] = Field(default_factory=list)
 
 
 class ObservationResult(BaseModel):

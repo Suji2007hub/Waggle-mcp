@@ -122,6 +122,8 @@ def test_parser_accepts_graph_editor_commands() -> None:
     merge_args = parser.parse_args(
         ["merge", "--base", "base.abhi", "--left", "left.abhi", "--right", "right.abhi", "--output", "merged.abhi"]
     )
+    query_args = parser.parse_args(["query", "--input", "memory.abhi", "--query-id", "q1"])
+    load_chunks_args = parser.parse_args(["load-chunks", "--input", "memory.abhi", "--chunk-id", "decision_1"])
 
     assert edit_args.command == "edit-graph"
     assert edit_args.port == 8787
@@ -132,6 +134,10 @@ def test_parser_accepts_graph_editor_commands() -> None:
     assert diff_args.input_path_a == "a.abhi"
     assert merge_args.command == "merge"
     assert merge_args.merge_strategy == "prefer_right"
+    assert query_args.command == "query"
+    assert query_args.query_id == "q1"
+    assert load_chunks_args.command == "load-chunks"
+    assert load_chunks_args.chunk_ids == ["decision_1"]
 
 
 def test_run_graph_editor_command_opens_browser_and_starts_uvicorn(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -452,6 +458,55 @@ def test_diff_and_merge_abhi_tools(tmp_path: Path) -> None:
     assert merge_result.isError is False
     assert Path(merge_result.structuredContent["output_path"]).exists()
     assert merge_result.structuredContent["nodes_merged"] >= 1
+
+
+def test_query_abhi_tool(tmp_path: Path) -> None:
+    app = make_app(tmp_path)
+    app.handle_tool_call(
+        "store_node",
+        {
+            "label": "Decision",
+            "content": "Use PostgreSQL",
+            "node_type": NodeType.DECISION.value,
+        },
+    )
+    exported = app.handle_tool_call("export_abhi", {"output_path": str(tmp_path / "memory.abhi")})
+    queried = app.handle_tool_call(
+        "query_abhi",
+        {
+            "input_path": exported.structuredContent["output_path"],
+            "query_id": "q1",
+        },
+    )
+
+    assert queried.isError is False
+    assert queried.structuredContent["query_id"] == "q1"
+    assert queried.structuredContent["executed_actions"]
+
+
+def test_load_abhi_chunks_tool(tmp_path: Path) -> None:
+    app = make_app(tmp_path)
+    for index in range(70):
+        app.handle_tool_call(
+            "store_node",
+            {
+                "label": f"Decision {index}",
+                "content": f"Use PostgreSQL for service {index}",
+                "node_type": NodeType.DECISION.value,
+            },
+        )
+    exported = app.handle_tool_call("export_abhi", {"output_path": str(tmp_path / "memory.abhi")})
+    loaded = app.handle_tool_call(
+        "load_abhi_chunks",
+        {
+            "input_path": exported.structuredContent["output_path"],
+            "query_text": "FIND nodes WHERE type='decision'",
+        },
+    )
+
+    assert loaded.isError is False
+    assert loaded.structuredContent["chunk_ids"]
+    assert loaded.structuredContent["available_chunk_count"] >= 2
 
 
 def test_export_context_bundle_tool(tmp_path: Path) -> None:

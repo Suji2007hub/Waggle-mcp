@@ -9,7 +9,14 @@ from uuid import uuid4
 import networkx as nx
 import numpy as np
 
-from waggle.abhi import diff_abhi_files, execute_abhi_query, load_abhi_document, merge_abhi_files
+from waggle.abhi import (
+    diff_abhi_files,
+    execute_abhi_query,
+    load_abhi_chunk_file,
+    load_abhi_document,
+    merge_abhi_files,
+    query_abhi_file,
+)
 from waggle.graph import MemoryGraph
 from waggle.models import NodeType, RelationType
 
@@ -541,6 +548,83 @@ def test_diff_and_merge_abhi_files(tmp_path: Path) -> None:
     merged_doc = load_abhi_document(merged.output_path)
     assert merged_doc["integrity"]["content_hash"].startswith("sha256:")
     assert merged.nodes_merged >= 1
+
+
+def test_query_abhi_file_updates_event_log_and_relevance_hits(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    graph.add_node(
+        label="Decision",
+        content="Use PostgreSQL for the main database.",
+        node_type=NodeType.DECISION,
+        project="studio",
+    )
+    exported = graph.export_abhi(output_path=tmp_path / "memory.abhi", project="studio")
+
+    result = query_abhi_file(input_path=exported.output_path, query_text="FIND nodes WHERE type='decision'")
+    document = load_abhi_document(exported.output_path)
+    event_log = document["waggle"]["event_log"]
+    matched_node = document["graph"]["nodes"][0]
+
+    assert result.node_count == 1
+    assert "log_access" in result.executed_actions
+    assert event_log
+    assert matched_node["metadata"]["relevance_hits"] == 1
+
+
+def test_export_abhi_builds_semantic_chunks_and_inspect_reports_them(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    for index in range(70):
+        graph.add_node(
+            label=f"Decision {index}",
+            content=f"Use PostgreSQL for service {index}",
+            node_type=NodeType.DECISION,
+            project="studio",
+        )
+    exported = graph.export_abhi(output_path=tmp_path / "chunked.abhi", project="studio")
+    inspected = graph.inspect_abhi(input_path=exported.output_path)
+    document = load_abhi_document(exported.output_path)
+    chunk_index = document["chunks"]["chunk_index"]
+
+    assert inspected.chunk_count >= 2
+    assert inspected.load_strategy == "on_demand"
+    assert inspected.preload_chunks
+    assert document["chunks"]["chunk_payloads"]
+    assert all(entry["byte_length"] > 0 for entry in chunk_index.values())
+
+
+def test_load_abhi_chunk_file_and_query_use_relevant_chunks(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    for index in range(70):
+        graph.add_node(
+            label=f"Decision {index}",
+            content=f"Use PostgreSQL for service {index}",
+            node_type=NodeType.DECISION,
+            project="studio",
+        )
+    for index in range(12):
+        graph.add_node(
+            label=f"Fact {index}",
+            content=f"MySQL replication issue {index}",
+            node_type=NodeType.FACT,
+            project="studio",
+        )
+    exported = graph.export_abhi(output_path=tmp_path / "chunked-query.abhi", project="studio")
+
+    loaded = load_abhi_chunk_file(
+        input_path=exported.output_path,
+        query_text="FIND nodes WHERE type='decision' AND content CONTAINS 'PostgreSQL'",
+    )
+    queried = query_abhi_file(
+        input_path=exported.output_path,
+        query_text="FIND nodes WHERE type='decision' AND content CONTAINS 'PostgreSQL'",
+    )
+
+    assert loaded.chunk_ids
+    assert loaded.available_chunk_count >= 2
+    assert loaded.node_count >= queried.node_count
+    assert queried.chunk_ids
+    assert queried.scanned_chunk_count == len(queried.chunk_ids)
+    assert all(chunk_id.startswith("decision_") for chunk_id in queried.chunk_ids)
 
 
 def test_export_graph_html_creates_visualization_file(tmp_path: Path) -> None:

@@ -70,9 +70,11 @@ from waggle.models import (
 from waggle.rate_limit import RateLimiter
 from waggle.runtime_context import runtime_context
 from waggle.serializer import (
+    serialize_abhi_chunk_load,
     serialize_abhi_inspect,
     serialize_abhi_diff,
     serialize_abhi_merge,
+    serialize_abhi_query,
     serialize_abhi_validation,
     serialize_conflict_entry,
     serialize_conflicts,
@@ -97,6 +99,8 @@ WRITE_HEAVY_TOOLS = {
     "import_graph_backup",
     "import_abhi",
     "merge_abhi",
+    "load_abhi_chunks",
+    "query_abhi",
     "import_markdown_vault",
 }
 REQUIRED_RUNTIME_METHODS = (
@@ -106,6 +110,8 @@ REQUIRED_RUNTIME_METHODS = (
     "diff_abhi",
     "import_abhi",
     "merge_abhi",
+    "load_abhi_chunks",
+    "query_abhi",
     "validate_abhi",
     "inspect_abhi",
     "list_context_scopes",
@@ -889,6 +895,39 @@ class WaggleServer:
                 ),
             ),
             types.Tool(
+                name="query_abhi",
+                description=(
+                    "Execute a saved or ad hoc query against an .abhi file and trigger its on_query event actions."
+                ),
+                inputSchema=_object_input_schema(
+                    {
+                        "input_path": {"type": "string", "description": "Path to the .abhi file to query."},
+                        "query_id": {"type": "string", "description": "Optional saved query id from the file."},
+                        "query_text": {"type": "string", "description": "Optional ad hoc query text to execute."},
+                    },
+                    required=["input_path"],
+                ),
+            ),
+            types.Tool(
+                name="load_abhi_chunks",
+                description=(
+                    "Load only selected or query-relevant chunks from an .abhi file for partial graph inspection."
+                ),
+                inputSchema=_object_input_schema(
+                    {
+                        "input_path": {"type": "string", "description": "Path to the .abhi file to inspect."},
+                        "chunk_ids": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Optional explicit chunk ids to load.",
+                        },
+                        "query_id": {"type": "string", "description": "Optional saved query id used to select chunks."},
+                        "query_text": {"type": "string", "description": "Optional ad hoc query text used to select chunks."},
+                    },
+                    required=["input_path"],
+                ),
+            ),
+            types.Tool(
                 name="validate_abhi",
                 description=(
                     "Validate an .abhi file without importing it. Verifies integrity hash, schema compliance, and constraint satisfaction."
@@ -1493,6 +1532,27 @@ class WaggleServer:
                     result = self._tool_result(
                         serialize_abhi_merge(merged),
                         merged.model_dump(mode="json"),
+                    )
+                elif name == "query_abhi":
+                    queried = graph.query_abhi(
+                        input_path=arguments["input_path"],
+                        query_id=arguments.get("query_id", ""),
+                        query_text=arguments.get("query_text", ""),
+                    )
+                    result = self._tool_result(
+                        serialize_abhi_query(queried),
+                        queried.model_dump(mode="json"),
+                    )
+                elif name == "load_abhi_chunks":
+                    loaded = graph.load_abhi_chunks(
+                        input_path=arguments["input_path"],
+                        chunk_ids=list(arguments.get("chunk_ids", [])),
+                        query_id=arguments.get("query_id", ""),
+                        query_text=arguments.get("query_text", ""),
+                    )
+                    result = self._tool_result(
+                        serialize_abhi_chunk_load(loaded),
+                        loaded.model_dump(mode="json"),
                     )
                 elif name == "validate_abhi":
                     validation = graph.validate_abhi(input_path=arguments["input_path"])
@@ -2638,6 +2698,23 @@ def _build_parser() -> argparse.ArgumentParser:
     merge_abhi.add_argument("--output", dest="output_path", required=True)
     merge_abhi.add_argument("--merge-strategy", choices=["prefer_right", "prefer_left"], default="prefer_right")
 
+    query_abhi = subparsers.add_parser(
+        "query",
+        help="Execute a query against an .abhi memory file.",
+    )
+    query_abhi.add_argument("--input", dest="input_path", required=True)
+    query_abhi.add_argument("--query-id", default="")
+    query_abhi.add_argument("--query-text", default="")
+
+    load_abhi_chunks = subparsers.add_parser(
+        "load-chunks",
+        help="Load selected or query-relevant chunks from an .abhi memory file.",
+    )
+    load_abhi_chunks.add_argument("--input", dest="input_path", required=True)
+    load_abhi_chunks.add_argument("--chunk-id", dest="chunk_ids", action="append", default=[])
+    load_abhi_chunks.add_argument("--query-id", default="")
+    load_abhi_chunks.add_argument("--query-text", default="")
+
     export_context_bundle = subparsers.add_parser(
         "export-context-bundle",
         help="Export a markdown/json context package for another model or conversation.",
@@ -2866,6 +2943,23 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             merge_strategy=args.merge_strategy,
         )
         print(json.dumps(merged.model_dump(mode="json"), indent=2))
+        return 0
+    if args.command == "query":
+        queried = backend.query_abhi(
+            input_path=args.input_path,
+            query_id=getattr(args, "query_id", ""),
+            query_text=getattr(args, "query_text", ""),
+        )
+        print(json.dumps(queried.model_dump(mode="json"), indent=2))
+        return 0
+    if args.command == "load-chunks":
+        loaded = backend.load_abhi_chunks(
+            input_path=args.input_path,
+            chunk_ids=getattr(args, "chunk_ids", []),
+            query_id=getattr(args, "query_id", ""),
+            query_text=getattr(args, "query_text", ""),
+        )
+        print(json.dumps(loaded.model_dump(mode="json"), indent=2))
         return 0
     if args.command == "export-context-bundle":
         exported = backend.export_context_bundle(

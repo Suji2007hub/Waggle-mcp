@@ -3,9 +3,11 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from waggle.models import (
+    AbhiChunkLoadResult,
     AbhiDiffResult,
     AbhiInspectResult,
     AbhiMergeResult,
+    AbhiQueryResult,
     AbhiValidationResult,
     ConflictEntry,
     ConflictListResult,
@@ -144,7 +146,11 @@ def serialize_abhi_inspect(result: AbhiInspectResult) -> str:
         f"Versions: {result.version_count}",
         f"Saved queries: {result.query_count}",
         f"Events: {result.event_count}",
+        f"Chunks: {result.chunk_count}",
+        f"Load strategy: {result.load_strategy}",
     ]
+    if result.preload_chunks:
+        lines.append(f"Preload chunks: {', '.join(result.preload_chunks)}")
     if result.node_types:
         lines.append(f"Node types: {', '.join(result.node_types)}")
     if result.edge_types:
@@ -191,6 +197,43 @@ def serialize_abhi_merge(result: AbhiMergeResult) -> str:
         lines.extend(["", "[CONFLICTS]"])
         lines.extend(f"• {item}" for item in result.conflicts)
     lines.append("=== End ABHI Merge ===")
+    return "\n".join(lines)
+
+
+def serialize_abhi_query(result: AbhiQueryResult) -> str:
+    lines = [
+        "=== ABHI Query ===",
+        f"Input: {result.input_path}",
+        f"Query: {result.query}",
+        f"Nodes matched: {result.node_count}",
+        f"Edges matched: {result.edge_count}",
+    ]
+    if result.chunk_ids:
+        lines.append(f"Chunks scanned: {', '.join(result.chunk_ids)}")
+    elif result.scanned_chunk_count:
+        lines.append(f"Chunks scanned: {result.scanned_chunk_count}")
+    if result.summary:
+        lines.append(result.summary)
+    if result.executed_actions:
+        lines.extend(["", "[EVENT ACTIONS]"])
+        lines.extend(f"• {item}" for item in result.executed_actions)
+    lines.append("=== End ABHI Query ===")
+    return "\n".join(lines)
+
+
+def serialize_abhi_chunk_load(result: AbhiChunkLoadResult) -> str:
+    lines = [
+        "=== ABHI Chunk Load ===",
+        f"Input: {result.input_path}",
+        f"Load strategy: {result.load_strategy}",
+        f"Available chunks: {result.available_chunk_count}",
+        f"Loaded chunks: {', '.join(result.chunk_ids) if result.chunk_ids else 'none'}",
+        f"Nodes loaded: {result.node_count}",
+        f"Edges loaded: {result.edge_count}",
+    ]
+    if result.query:
+        lines.append(f"Query selector: {result.query}")
+    lines.append("=== End ABHI Chunk Load ===")
     return "\n".join(lines)
 
 

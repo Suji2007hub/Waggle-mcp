@@ -14,11 +14,14 @@ import numpy as np
 from waggle.abhi import (
     ABHI_SPEC_VERSION,
     abhi_to_snapshot,
+    dispatch_abhi_event,
     diff_abhi_files,
     filter_snapshot_by_scope,
     inspect_abhi_document,
+    load_abhi_chunk_file,
     load_abhi_document,
     merge_abhi_files,
+    query_abhi_file,
     validate_abhi_document,
     write_abhi_document,
 )
@@ -62,11 +65,13 @@ from waggle.markdown_vault import (
     vault_filename,
 )
 from waggle.models import (
+    AbhiChunkLoadResult,
     AbhiDiffResult,
     AbhiExportResult,
     AbhiImportResult,
     AbhiInspectResult,
     AbhiMergeResult,
+    AbhiQueryResult,
     AbhiValidationResult,
     ApiKeyCreateResult,
     ApiKeyRecord,
@@ -2042,6 +2047,24 @@ class Neo4jMemoryGraph:
     def diff_abhi(self, *, input_path_a: str | Path, input_path_b: str | Path) -> AbhiDiffResult:
         return diff_abhi_files(input_path_a=input_path_a, input_path_b=input_path_b)
 
+    def query_abhi(self, *, input_path: str | Path, query_id: str = "", query_text: str = "") -> AbhiQueryResult:
+        return query_abhi_file(input_path=input_path, query_id=query_id, query_text=query_text)
+
+    def load_abhi_chunks(
+        self,
+        *,
+        input_path: str | Path,
+        chunk_ids: list[str] | None = None,
+        query_id: str = "",
+        query_text: str = "",
+    ) -> AbhiChunkLoadResult:
+        return load_abhi_chunk_file(
+            input_path=input_path,
+            chunk_ids=chunk_ids or [],
+            query_id=query_id,
+            query_text=query_text,
+        )
+
     def merge_abhi(
         self,
         *,
@@ -2065,6 +2088,7 @@ class Neo4jMemoryGraph:
         validation = validate_abhi_document(document, input_path=source)
         if not validation.valid:
             raise ValidationFailure("Invalid .abhi file: " + "; ".join(validation.errors))
+        executed_actions = dispatch_abhi_event(document, event_name="on_import", persist=False, input_path=source)
         snapshot = abhi_to_snapshot(document, fallback_tenant_id=self.tenant_id)
 
         with self._lock, self._session() as session:
@@ -2075,6 +2099,7 @@ class Neo4jMemoryGraph:
                 schema_version=int(snapshot.get("schema_version", 1)),
                 abhi_spec_version=validation.abhi_spec_version or ABHI_SPEC_VERSION,
                 hash_verified=True,
+                executed_actions=executed_actions,
             )
             for raw_node in snapshot.get("nodes", []):
                 raw_node = {**raw_node, "tenant_id": raw_node.get("tenant_id") or snapshot_tenant}

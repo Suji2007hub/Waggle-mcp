@@ -8,11 +8,13 @@ from pathlib import Path
 from typing import Any
 
 from waggle.models import (
+    AbhiChunkLoadResult,
     AbhiDiffResult,
     AbhiExportResult,
     AbhiImportResult,
     AbhiInspectResult,
     AbhiMergeResult,
+    AbhiQueryResult,
     AbhiValidationResult,
 )
 
@@ -42,6 +44,9 @@ ABHI_EDGE_TYPES: tuple[str, ...] = (
     "caused_by",
     "blocks",
 )
+
+ABHI_CHUNK_NODE_LIMIT = 64
+ABHI_CHUNK_PRELOAD_LIMIT = 2
 
 
 def filter_snapshot_by_scope(
@@ -157,6 +162,7 @@ def write_abhi_document(
     destination = Path(output_path).expanduser()
     destination.parent.mkdir(parents=True, exist_ok=True)
     document = build_abhi_document(snapshot)
+    executed_actions = dispatch_abhi_event(document, event_name="on_export", persist=False)
     destination.write_text(json.dumps(document, indent=2), encoding="utf-8")
     return AbhiExportResult(
         output_path=str(destination),
@@ -166,6 +172,7 @@ def write_abhi_document(
         node_count=len(document["graph"]["nodes"]),
         edge_count=len(document["graph"]["edges"]),
         content_hash=document["integrity"]["content_hash"],
+        executed_actions=executed_actions,
     )
 
 
@@ -179,6 +186,8 @@ def inspect_abhi_document(document: dict[str, Any], *, input_path: str | Path) -
     node_types = sorted({str(node.get("type", "")).strip() for node in nodes if str(node.get("type", "")).strip()})
     edge_types = sorted({str(edge.get("type", "")).strip() for edge in edges if str(edge.get("type", "")).strip()})
     waggle_block = document.get("waggle", {}) if isinstance(document.get("waggle"), dict) else {}
+    chunks = document.get("chunks", {}) if isinstance(document.get("chunks"), dict) else {}
+    chunk_index = chunks.get("chunk_index", {}) if isinstance(chunks.get("chunk_index"), dict) else {}
     return AbhiInspectResult(
         input_path=str(Path(input_path).expanduser()),
         tenant_id=str(waggle_block.get("tenant_id", "")),
@@ -192,6 +201,9 @@ def inspect_abhi_document(document: dict[str, Any], *, input_path: str | Path) -
         version_count=len(document.get("versions", [])),
         query_count=len(document.get("queries", {}).get("saved", [])) if isinstance(document.get("queries"), dict) else 0,
         event_count=len(document.get("events", {})) if isinstance(document.get("events"), dict) else 0,
+        chunk_count=len(chunk_index),
+        load_strategy=str(chunks.get("load_strategy", "full") or "full"),
+        preload_chunks=[str(item) for item in chunks.get("preload", []) if str(item).strip()],
         content_hash=str(document.get("integrity", {}).get("content_hash", "")),
     )
 
@@ -299,7 +311,7 @@ def merge_abhi_documents(
     merged["ai_rules"] = _merge_prefer_side(base_document.get("ai_rules", {}), left_document.get("ai_rules", {}), right_document.get("ai_rules", {}), strategy)
     merged["ui"] = _merge_prefer_side(base_document.get("ui", _default_ui()), left_document.get("ui", _default_ui()), right_document.get("ui", _default_ui()), strategy)
     merged["external_refs"] = _merge_unique_list(base_document.get("external_refs", []), left_document.get("external_refs", []), right_document.get("external_refs", []))
-    merged["chunks"] = _merge_prefer_side(base_document.get("chunks", {}), left_document.get("chunks", {}), right_document.get("chunks", {}), strategy)
+    merged["chunks"] = _build_chunks(merged_nodes, merged_edges)
     merged["queries"] = _merge_queries(base_document.get("queries", {}), left_document.get("queries", {}), right_document.get("queries", {}), strategy)
     merged["events"] = _merge_prefer_side(base_document.get("events", {}), left_document.get("events", {}), right_document.get("events", {}), strategy)
     merged["waggle"] = _merge_prefer_side(base_document.get("waggle", {}), left_document.get("waggle", {}), right_document.get("waggle", {}), strategy)
@@ -326,6 +338,7 @@ def merge_abhi_documents(
     merged["integrity"]["last_validated"] = _latest_validation_timestamp(merged["graph"]["nodes"], merged["graph"]["edges"])
     merged["integrity"]["abhi_spec_version"] = ABHI_SPEC_VERSION
     merged["integrity"]["content_hash"] = compute_abhi_hash(merged)
+    executed_actions = dispatch_abhi_event(merged, event_name="on_merge", persist=False)
 
     destination = Path(output_path).expanduser()
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -342,6 +355,7 @@ def merge_abhi_documents(
         edges_merged=len(merged["graph"]["edges"]),
         conflicts=[*node_conflicts, *edge_conflicts],
         content_hash=merged["integrity"]["content_hash"],
+        executed_actions=executed_actions,
     )
 
 
@@ -364,8 +378,9 @@ def execute_abhi_query(
     if not effective_query:
         raise ValueError("ABHI query text cannot be empty.")
 
-    nodes = list(document.get("graph", {}).get("nodes", []))
-    edges = list(document.get("graph", {}).get("edges", []))
+    chunk_payload = load_abhi_chunks(document, query_text=effective_query)
+    nodes = list(chunk_payload["nodes"])
+    edges = list(chunk_payload["edges"])
     node_by_id = {str(node.get("id", "")).strip(): node for node in nodes}
     normalized = effective_query.lower()
 
@@ -391,16 +406,201 @@ def execute_abhi_query(
         "query": effective_query,
         "summary": (
             f"Matched {len(matched_nodes)} node{'s' if len(matched_nodes) != 1 else ''} and "
-            f"{len(matched_edges)} edge{'s' if len(matched_edges) != 1 else ''}."
+            f"{len(matched_edges)} edge{'s' if len(matched_edges) != 1 else ''} from "
+            f"{len(chunk_payload['chunk_ids'])} chunk{'s' if len(chunk_payload['chunk_ids']) != 1 else ''}."
         ),
         "nodes": matched_nodes,
         "edges": matched_edges,
+        "chunk_ids": list(chunk_payload["chunk_ids"]),
+        "scanned_chunk_count": len(chunk_payload["chunk_ids"]),
         "node_labels": {
             node_id: str(node.get("metadata", {}).get("label") or node.get("content", "")).strip()
             for node_id, node in node_by_id.items()
             if node_id in {str(item.get("id", "")).strip() for item in matched_nodes}
         },
     }
+
+
+def load_abhi_chunks(
+    document: dict[str, Any],
+    *,
+    chunk_ids: list[str] | None = None,
+    query_text: str = "",
+) -> dict[str, Any]:
+    index = _chunk_index(document)
+    payloads = _chunk_payloads(document)
+    selected_chunk_ids = _resolve_chunk_selection(document, chunk_ids=chunk_ids or [], query_text=query_text)
+    if not selected_chunk_ids:
+        nodes = list(document.get("graph", {}).get("nodes", []))
+        edges = list(document.get("graph", {}).get("edges", []))
+        return {"chunk_ids": [], "nodes": nodes, "edges": edges}
+
+    node_map: dict[str, dict[str, Any]] = {}
+    edge_map: dict[str, dict[str, Any]] = {}
+    for chunk_id in selected_chunk_ids:
+        payload = payloads.get(chunk_id)
+        if isinstance(payload, dict):
+            graph = payload.get("graph", {}) if isinstance(payload.get("graph"), dict) else {}
+            chunk_nodes = list(graph.get("nodes", []))
+            chunk_edges = list(graph.get("edges", []))
+        else:
+            manifest = index.get(chunk_id, {})
+            chunk_node_ids = {str(item).strip() for item in manifest.get("node_ids", []) if str(item).strip()}
+            chunk_edge_ids = {str(item).strip() for item in manifest.get("edge_ids", []) if str(item).strip()}
+            chunk_nodes = [
+                node for node in document.get("graph", {}).get("nodes", [])
+                if str(node.get("id", "")).strip() in chunk_node_ids
+            ]
+            chunk_edges = [
+                edge for edge in document.get("graph", {}).get("edges", [])
+                if str(edge.get("id", "")).strip() in chunk_edge_ids
+            ]
+        for node in chunk_nodes:
+            node_id = str(node.get("id", "")).strip()
+            if node_id:
+                node_map[node_id] = node
+        for edge in chunk_edges:
+            edge_id = str(edge.get("id", "")).strip()
+            if edge_id:
+                edge_map[edge_id] = edge
+
+    return {
+        "chunk_ids": selected_chunk_ids,
+        "nodes": [node_map[node_id] for node_id in sorted(node_map)],
+        "edges": [edge_map[edge_id] for edge_id in sorted(edge_map)],
+    }
+
+
+def query_abhi_file(
+    *,
+    input_path: str | Path,
+    query_id: str = "",
+    query_text: str = "",
+) -> AbhiQueryResult:
+    source = Path(input_path).expanduser()
+    document = load_abhi_document(source)
+    payload = execute_abhi_query(document, query_id=query_id, query_text=query_text)
+    executed_actions = dispatch_abhi_event(document, event_name="on_query", persist=True, input_path=source, query_payload=payload)
+    return AbhiQueryResult(
+        input_path=str(source),
+        query_id=payload["query_id"],
+        name=payload["name"],
+        query=payload["query"],
+        summary=payload["summary"],
+        node_count=len(payload["nodes"]),
+        edge_count=len(payload["edges"]),
+        node_ids=[str(item.get("id", "")).strip() for item in payload["nodes"]],
+        edge_ids=[str(item.get("id", "")).strip() for item in payload["edges"]],
+        chunk_ids=[str(item).strip() for item in payload.get("chunk_ids", []) if str(item).strip()],
+        scanned_chunk_count=int(payload.get("scanned_chunk_count", 0) or 0),
+        executed_actions=executed_actions,
+    )
+
+
+def load_abhi_chunk_file(
+    *,
+    input_path: str | Path,
+    chunk_ids: list[str] | None = None,
+    query_id: str = "",
+    query_text: str = "",
+) -> AbhiChunkLoadResult:
+    source = Path(input_path).expanduser()
+    document = load_abhi_document(source)
+    selection_query = ""
+    if query_id.strip() or query_text.strip():
+        query_payload = execute_abhi_query(document, query_id=query_id, query_text=query_text)
+        selection_query = str(query_payload.get("query", "")).strip()
+    chunk_payload = load_abhi_chunks(document, chunk_ids=chunk_ids or [], query_text=selection_query)
+    return AbhiChunkLoadResult(
+        input_path=str(source),
+        chunk_ids=[str(item).strip() for item in chunk_payload["chunk_ids"]],
+        load_strategy=str(document.get("chunks", {}).get("load_strategy", "full") or "full"),
+        node_count=len(chunk_payload["nodes"]),
+        edge_count=len(chunk_payload["edges"]),
+        available_chunk_count=len(_chunk_index(document)),
+        query=selection_query,
+        node_ids=[str(item.get("id", "")).strip() for item in chunk_payload["nodes"]],
+        edge_ids=[str(item.get("id", "")).strip() for item in chunk_payload["edges"]],
+    )
+
+
+def dispatch_abhi_event(
+    document: dict[str, Any],
+    *,
+    event_name: str,
+    persist: bool,
+    input_path: str | Path | None = None,
+    query_payload: dict[str, Any] | None = None,
+) -> list[str]:
+    events = document.get("events", {}) if isinstance(document.get("events"), dict) else {}
+    actions = list(events.get(event_name, [])) if isinstance(events.get(event_name, []), list) else []
+    executed: list[str] = []
+    event_log = _ensure_event_log(document)
+
+    if event_name == "on_query" and query_payload is not None:
+        waggle = _ensure_waggle_block(document)
+        stats = waggle.setdefault("query_stats", {})
+        query_key = str(query_payload.get("query_id") or query_payload.get("query") or "custom-query")
+        stats[query_key] = int(stats.get(query_key, 0) or 0) + 1
+
+    for action in actions:
+        normalized = str(action).strip()
+        if not normalized:
+            continue
+        if normalized in {"validate_constraints", "validate_schema"}:
+            validation = validate_abhi_document(document, input_path=input_path or "live://abhi")
+            if not validation.valid:
+                raise ValueError("; ".join(validation.errors))
+            executed.append(normalized)
+        elif normalized in {"verify_hash"}:
+            expected = str(document.get("integrity", {}).get("content_hash", "")).strip()
+            actual = compute_abhi_hash(document)
+            if expected and expected != actual:
+                raise ValueError("Integrity hash mismatch.")
+            executed.append(normalized)
+        elif normalized in {"compute_hash", "update_hash", "recompute_hash"}:
+            document.setdefault("integrity", {})["content_hash"] = compute_abhi_hash(document)
+            executed.append(normalized)
+        elif normalized == "snapshot_version":
+            versions = document.setdefault("versions", [])
+            versions.append(
+                {
+                    "id": f"{event_name}-{len(versions) + 1}",
+                    "ts": _latest_validation_timestamp(
+                        list(document.get("graph", {}).get("nodes", [])),
+                        list(document.get("graph", {}).get("edges", [])),
+                    ),
+                    "author": "waggle-abhi-events",
+                    "changes": [],
+                    "message": f"Event {event_name} executed",
+                }
+            )
+            executed.append(normalized)
+        elif normalized == "strip_ui_state":
+            event_log.append({"event": event_name, "action": normalized, "status": "skipped"})
+            continue
+        elif normalized == "log_access":
+            executed.append(normalized)
+        elif normalized == "update_relevance_scores":
+            _bump_query_relevance(document, query_payload or {})
+            executed.append(normalized)
+        elif normalized == "three_way_diff":
+            waggle = _ensure_waggle_block(document)
+            waggle["last_merge_summary"] = {
+                "node_count": len(document.get("graph", {}).get("nodes", [])),
+                "edge_count": len(document.get("graph", {}).get("edges", [])),
+            }
+            executed.append(normalized)
+        elif normalized in {"resolve_conflicts", "run_dedup", "auto_link", "check_cycles", "flag_for_review", "notify"}:
+            executed.append(normalized)
+        else:
+            event_log.append({"event": event_name, "action": normalized, "status": "unknown"})
+            continue
+        event_log.append({"event": event_name, "action": normalized, "status": "executed"})
+
+    if persist and input_path is not None:
+        Path(input_path).expanduser().write_text(json.dumps(document, indent=2), encoding="utf-8")
+    return executed
 
 
 def validate_abhi_document(document: dict[str, Any], *, input_path: str | Path) -> AbhiValidationResult:
@@ -770,17 +970,84 @@ def _default_ui() -> dict[str, Any]:
 
 
 def _build_chunks(nodes: list[dict[str, Any]], edges: list[dict[str, Any]]) -> dict[str, Any]:
-    return {
-        "chunk_index": {
-            "full_graph": {
-                "node_ids": [node["id"] for node in nodes],
-                "edge_ids": [edge["id"] for edge in edges],
-                "byte_offset": 0,
-                "byte_length": 0,
+    if not nodes:
+        return {
+            "chunk_index": {},
+            "chunk_payloads": {},
+            "load_strategy": "full",
+            "preload": [],
+        }
+
+    edges_by_node: dict[str, list[dict[str, Any]]] = {}
+    for edge in edges:
+        source_id = str(edge.get("from", "")).strip()
+        target_id = str(edge.get("to", "")).strip()
+        if source_id:
+            edges_by_node.setdefault(source_id, []).append(edge)
+        if target_id and target_id != source_id:
+            edges_by_node.setdefault(target_id, []).append(edge)
+
+    grouped_nodes: dict[str, list[dict[str, Any]]] = {}
+    for node in nodes:
+        node_type = str(node.get("type", "")).strip() or "note"
+        grouped_nodes.setdefault(node_type, []).append(node)
+
+    chunk_index: dict[str, Any] = {}
+    chunk_payloads: dict[str, Any] = {}
+    byte_offset = 0
+    ordered_chunk_ids: list[str] = []
+
+    for node_type in sorted(grouped_nodes):
+        typed_nodes = sorted(grouped_nodes[node_type], key=lambda item: str(item.get("id", "")).strip())
+        for chunk_number, start in enumerate(range(0, len(typed_nodes), ABHI_CHUNK_NODE_LIMIT), start=1):
+            chunk_nodes = typed_nodes[start : start + ABHI_CHUNK_NODE_LIMIT]
+            chunk_node_ids = {str(node.get("id", "")).strip() for node in chunk_nodes if str(node.get("id", "")).strip()}
+            chunk_edges = [
+                edge
+                for edge in edges
+                if str(edge.get("from", "")).strip() in chunk_node_ids or str(edge.get("to", "")).strip() in chunk_node_ids
+            ]
+            chunk_id = f"{node_type}_{chunk_number}"
+            chunk_payload = {
+                "graph": {
+                    "nodes": deepcopy(chunk_nodes),
+                    "edges": deepcopy(chunk_edges),
+                },
+                "summary": f"{node_type} nodes {start + 1}-{start + len(chunk_nodes)}",
             }
-        },
-        "load_strategy": "full",
-        "preload": ["full_graph"],
+            blob = json.dumps(chunk_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+            edge_types = sorted(
+                {
+                    str(edge.get("type", "")).strip()
+                    for edge in chunk_edges
+                    if str(edge.get("type", "")).strip()
+                }
+            )
+            content_terms = _chunk_content_terms(chunk_nodes)
+            chunk_index[chunk_id] = {
+                "label": f"{node_type} chunk {chunk_number}",
+                "node_ids": sorted(chunk_node_ids),
+                "edge_ids": sorted(
+                    str(edge.get("id", "")).strip()
+                    for edge in chunk_edges
+                    if str(edge.get("id", "")).strip()
+                ),
+                "node_types": [node_type],
+                "edge_types": edge_types,
+                "content_terms": content_terms,
+                "byte_offset": byte_offset,
+                "byte_length": len(blob),
+            }
+            chunk_payloads[chunk_id] = chunk_payload
+            ordered_chunk_ids.append(chunk_id)
+            byte_offset += len(blob)
+
+    preload = ordered_chunk_ids[:ABHI_CHUNK_PRELOAD_LIMIT]
+    return {
+        "chunk_index": chunk_index,
+        "chunk_payloads": chunk_payloads,
+        "load_strategy": "on_demand" if len(ordered_chunk_ids) > 1 else "full",
+        "preload": preload,
     }
 
 
@@ -823,6 +1090,91 @@ def _latest_validation_timestamp(nodes: list[dict[str, Any]], edges: list[dict[s
         timestamps.append(edge.get("metadata", {}).get("created_at"))
     normalized = [str(ts).strip() for ts in timestamps if str(ts or "").strip()]
     return max(normalized) if normalized else ""
+
+
+def _chunk_index(document: dict[str, Any]) -> dict[str, Any]:
+    chunks = document.get("chunks", {}) if isinstance(document.get("chunks"), dict) else {}
+    index = chunks.get("chunk_index", {})
+    return index if isinstance(index, dict) else {}
+
+
+def _chunk_payloads(document: dict[str, Any]) -> dict[str, Any]:
+    chunks = document.get("chunks", {}) if isinstance(document.get("chunks"), dict) else {}
+    payloads = chunks.get("chunk_payloads", {})
+    return payloads if isinstance(payloads, dict) else {}
+
+
+def _resolve_chunk_selection(
+    document: dict[str, Any],
+    *,
+    chunk_ids: list[str],
+    query_text: str,
+) -> list[str]:
+    index = _chunk_index(document)
+    if not index:
+        return []
+    if chunk_ids:
+        selected = [chunk_id for chunk_id in chunk_ids if chunk_id in index]
+        if selected:
+            return selected
+    if query_text.strip():
+        selected = _select_relevant_chunks(document, query_text)
+        if selected:
+            return selected
+    preload = [
+        str(item).strip()
+        for item in document.get("chunks", {}).get("preload", [])
+        if str(item).strip() in index
+    ]
+    return preload or sorted(index)
+
+
+def _select_relevant_chunks(document: dict[str, Any], query_text: str) -> list[str]:
+    index = _chunk_index(document)
+    lowered = query_text.lower()
+    selected: list[str] = []
+    type_match = _extract_single_quoted_value(query_text, "type=")
+    edge_type_match = _extract_single_quoted_value(query_text, "edge.type=")
+    content_match = normalize_text(_extract_single_quoted_value(query_text, "content contains"))
+    content_terms = set(content_match.split()) if content_match else set()
+    for chunk_id in sorted(index):
+        manifest = index[chunk_id] if isinstance(index.get(chunk_id), dict) else {}
+        node_types = {str(item).strip().lower() for item in manifest.get("node_types", []) if str(item).strip()}
+        edge_types = {str(item).strip().lower() for item in manifest.get("edge_types", []) if str(item).strip()}
+        chunk_terms = {normalize_text(str(item)) for item in manifest.get("content_terms", []) if str(item).strip()}
+        if type_match and type_match.lower() in node_types:
+            selected.append(chunk_id)
+            continue
+        if edge_type_match and edge_type_match.lower() in edge_types:
+            selected.append(chunk_id)
+            continue
+        if content_terms and chunk_terms.intersection(content_terms):
+            selected.append(chunk_id)
+            continue
+        if "recent changes" in lowered and "decision" in node_types:
+            selected.append(chunk_id)
+    if selected:
+        return selected
+    return []
+
+
+def _chunk_content_terms(nodes: list[dict[str, Any]]) -> list[str]:
+    tokens: list[str] = []
+    seen: set[str] = set()
+    for node in nodes:
+        for raw in (
+            str(node.get("content", "")),
+            str(node.get("metadata", {}).get("label", "")) if isinstance(node.get("metadata"), dict) else "",
+        ):
+            for piece in normalize_text(raw).split():
+                if len(piece) < 4:
+                    continue
+                if piece not in seen:
+                    seen.add(piece)
+                    tokens.append(piece)
+                if len(tokens) >= 24:
+                    return tokens
+    return tokens
 
 
 def _node_has_field(node: dict[str, Any], field: str) -> bool:
@@ -1152,3 +1504,37 @@ def _merge_queries(base: dict[str, Any], left: dict[str, Any], right: dict[str, 
         "saved": [merged_saved[key] for key in sorted(merged_saved)],
         "auto_run_on_open": auto_run,
     }
+
+
+def _ensure_waggle_block(document: dict[str, Any]) -> dict[str, Any]:
+    waggle = document.get("waggle")
+    if not isinstance(waggle, dict):
+        waggle = {}
+        document["waggle"] = waggle
+    return waggle
+
+
+def _ensure_event_log(document: dict[str, Any]) -> list[dict[str, Any]]:
+    waggle = _ensure_waggle_block(document)
+    event_log = waggle.get("event_log")
+    if not isinstance(event_log, list):
+        event_log = []
+        waggle["event_log"] = event_log
+    return event_log
+
+
+def _bump_query_relevance(document: dict[str, Any], query_payload: dict[str, Any]) -> None:
+    matched_ids = {str(node_id).strip() for node_id in query_payload.get("node_ids", []) if str(node_id).strip()}
+    if not matched_ids:
+        matched_ids = {
+            str(item.get("id", "")).strip()
+            for item in query_payload.get("nodes", [])
+            if str(item.get("id", "")).strip()
+        }
+    for node in document.get("graph", {}).get("nodes", []):
+        node_id = str(node.get("id", "")).strip()
+        if node_id not in matched_ids:
+            continue
+        metadata = node.setdefault("metadata", {})
+        current = int(metadata.get("relevance_hits", 0) or 0)
+        metadata["relevance_hits"] = current + 1
