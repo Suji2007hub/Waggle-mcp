@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -70,11 +72,37 @@ def make_http_config(tmp_path: Path, **overrides: object) -> AppConfig:
     return config
 
 
+def insert_transcript_record(graph: MemoryGraph, *, project: str, session_id: str, role: str, turn_index: int, text: str) -> None:
+    with graph._lock, graph._connect() as connection:  # noqa: SLF001 - test helper
+        graph._store_transcript_record(  # noqa: SLF001 - test helper
+            connection,
+            agent_id="codex",
+            project=project,
+            session_id=session_id,
+            observed_at=datetime(2026, 5, 1, tzinfo=timezone.utc),
+            turn_index=turn_index,
+            role=role,
+            transcript_text=text,
+            metadata={},
+            message_identity=f"{session_id}:{turn_index}:{role}",
+        )
+
+
 def test_api_key_hashing_round_trip() -> None:
     hashed = hash_api_key("secret-token")
     assert hashed != "secret-token"
     assert verify_api_key("secret-token", hashed) is True
     assert verify_api_key("wrong-token", hashed) is False
+
+
+def test_app_config_disables_hybrid_rerank_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("WAGGLE_HYBRID_RERANK_ENABLED", raising=False)
+    monkeypatch.delenv("WAGGLE_HYBRID_RERANK_MODEL", raising=False)
+
+    config = AppConfig.from_env()
+
+    assert config.hybrid_rerank_enabled is False
+    assert config.hybrid_rerank_model == "claude-3-5-sonnet-latest"
 
 
 def test_rate_limiter_enforces_request_and_concurrency_limits() -> None:
@@ -184,3 +212,187 @@ def test_http_app_rate_limit_and_payload_limit(tmp_path: Path) -> None:
 
         assert first.status_code == 200
         assert second.status_code == 429
+
+
+def test_http_graph_editor_routes_and_crud(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    insert_transcript_record(
+        graph,
+        project="studio",
+        session_id="sess-a",
+        role="user",
+        turn_index=0,
+        text="Need transcript provenance in the UI.",
+    )
+    insert_transcript_record(
+        graph,
+        project="studio",
+        session_id="sess-a",
+        role="assistant",
+        turn_index=1,
+        text="Stored transcript provenance as memory.",
+    )
+    app_server = WaggleServer(graph=graph, config=make_http_config(tmp_path))
+    app = create_http_application(app_server, app_server.config)
+
+    with TestClient(app) as client:
+        editor = client.get("/graph")
+        assert editor.status_code == 200
+        assert "Waggle Graph Studio" in editor.text
+        assert 'window.__WAGGLE_GRAPH_CONFIG__' in editor.text
+        viewer = client.get("/graph?mode=view")
+        assert viewer.status_code == 200
+        assert '"mode": "view"' in viewer.text
+        asset = client.get("/graph-assets/app.js")
+        assert asset.status_code == 200
+        assert "javascript" in asset.headers["content-type"]
+
+        created_node = client.post(
+            "/api/graph/nodes",
+            json={
+                "label": "HTTP Node",
+                "content": "Created through the graph editor API.",
+                "node_type": "note",
+                "project": "studio",
+            },
+        )
+        assert created_node.status_code == 200
+        node_id = created_node.json()["id"]
+
+        snapshot = client.get("/api/graph", params={"project": "studio"})
+        assert snapshot.status_code == 200
+        assert len(snapshot.json()["nodes"]) == 1
+
+        abhi_preview = client.get("/api/graph/abhi", params={"project": "studio"})
+        assert abhi_preview.status_code == 200
+        assert "schema" in abhi_preview.json()
+        assert abhi_preview.json()["validation"]["valid"] is True
+
+        saved_ui = client.patch(
+            "/api/graph/ui",
+            json={
+                "project": "studio",
+                "positions": {node_id: {"x": 140, "y": 280}},
+                "zoom": 1.1,
+                "viewport": {"center_x": 140, "center_y": 280},
+                "selected_nodes": [node_id],
+            },
+        )
+        assert saved_ui.status_code == 200
+        assert saved_ui.json()["positions"][node_id] == {"x": 140, "y": 280}
+
+        restored = client.post(
+            "/api/graph/restore",
+            json={
+                "project": "studio",
+                "nodes": [
+                    {
+                        "id": node_id,
+                        "label": "HTTP Node Restored",
+                        "content": "Restored through snapshot replay.",
+                        "node_type": "note",
+                        "tags": ["restored"],
+                        "project": "studio",
+                    }
+                ],
+                "edges": [],
+                "ui": {"positions": {node_id: {"x": 220, "y": 120}}, "selected_nodes": [node_id]},
+            },
+        )
+        assert restored.status_code == 200
+        assert restored.json()["nodes"][0]["label"] == "HTTP Node Restored"
+
+        updated_node = client.patch(
+            f"/api/graph/nodes/{node_id}",
+            json={"label": "HTTP Node Updated", "content": "Edited in browser."},
+        )
+        assert updated_node.status_code == 200
+        assert updated_node.json()["label"] == "HTTP Node Updated"
+
+        second_node = client.post(
+            "/api/graph/nodes",
+            json={
+                "label": "HTTP Node 2",
+                "content": "Second node",
+                "node_type": "note",
+                "project": "studio",
+            },
+        )
+        second_id = second_node.json()["id"]
+
+        created_edge = client.post(
+            "/api/graph/edges",
+            json={
+                "source_id": node_id,
+                "target_id": second_id,
+                "relationship": "relates_to",
+                "weight": 1.0,
+            },
+        )
+        assert created_edge.status_code == 200
+        edge_id = created_edge.json()["id"]
+
+        updated_edge = client.patch(
+            f"/api/graph/edges/{edge_id}",
+            json={
+                "source_id": node_id,
+                "target_id": second_id,
+                "relationship": "depends_on",
+                "weight": 0.5,
+            },
+        )
+        assert updated_edge.status_code == 200
+        assert updated_edge.json()["relationship"] == "depends_on"
+
+        query_result = client.post(
+            "/api/graph/query",
+            json={"project": "studio", "query": "FIND nodes WHERE type='note' AND content CONTAINS 'browser'"},
+        )
+        assert query_result.status_code == 200
+        assert len(query_result.json()["nodes"]) == 1
+
+        transcripts = client.get("/api/graph/transcripts", params={"project": "studio"})
+        assert transcripts.status_code == 200
+        assert transcripts.json()["records"]
+
+        transcript_search = client.get("/api/graph/transcripts", params={"project": "studio", "query": "provenance"})
+        assert transcript_search.status_code == 200
+        assert transcript_search.json()["hits"]
+
+        retrieval_debug = client.post(
+            "/api/graph/retrieval-debug",
+            json={"project": "studio", "query": "browser provenance", "max_nodes": 4, "max_depth": 1},
+        )
+        assert retrieval_debug.status_code == 200
+        assert "fusion_hits" in retrieval_debug.json()
+
+        diff_result = client.get("/api/graph/diff", params={"since": "24h"})
+        assert diff_result.status_code == 200
+        assert len(diff_result.json()["added_nodes"]) >= 2
+
+        exported_abhi = client.get("/api/graph/export", params={"format": "abhi", "project": "studio"})
+        assert exported_abhi.status_code == 200
+        assert exported_abhi.content.startswith(b"PK")
+        assert "attachment; filename=\"waggle-memory.abhi\"" == exported_abhi.headers["content-disposition"]
+        exported_abhi_b64 = base64.b64encode(exported_abhi.content).decode("ascii")
+
+        import_preview = client.post(
+            "/api/graph/abhi/preview-import",
+            json={"format": "abhi", "content_base64": exported_abhi_b64},
+        )
+        assert import_preview.status_code == 200
+        assert import_preview.json()["validation"]["valid"] is True
+        assert import_preview.json()["snapshot"]["nodes"]
+
+        abhi_diff = client.post(
+            "/api/graph/abhi/diff",
+            json={"content_a_base64": exported_abhi_b64, "content_b_base64": exported_abhi_b64},
+        )
+        assert abhi_diff.status_code == 200
+        assert "diff" in abhi_diff.json()
+
+        deleted_edge = client.delete(f"/api/graph/edges/{edge_id}")
+        assert deleted_edge.status_code == 200
+
+        deleted_node = client.delete(f"/api/graph/nodes/{second_id}")
+        assert deleted_node.status_code == 200

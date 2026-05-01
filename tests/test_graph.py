@@ -1,19 +1,33 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
 import networkx as nx
 import numpy as np
+import pytest
 
+from waggle.abhi import (
+    diff_abhi_files,
+    execute_abhi_query,
+    load_abhi_chunk_file,
+    load_abhi_document,
+    merge_abhi_files,
+    query_abhi_file,
+)
 from waggle.graph import MemoryGraph
 from waggle.models import NodeType, RelationType
 
 
 class FakeEmbeddingModel:
+    model_name = "fake-model"
+    model_id = "fake-model:deterministic-v1"
+
     def embed(self, text: str) -> np.ndarray:
         vector = np.zeros(8, dtype=np.float32)
         for token in text.lower().split():
@@ -40,6 +54,10 @@ class FakeEmbeddingModel:
 
 def make_graph(tmp_path: Path) -> MemoryGraph:
     return MemoryGraph(tmp_path / "memory.db", FakeEmbeddingModel())
+
+
+def _sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def test_memory_graph_migrates_legacy_nodes_before_creating_indexes(tmp_path: Path) -> None:
@@ -373,6 +391,363 @@ def test_export_and_import_backup_round_trip(tmp_path: Path) -> None:
     assert imported.get_stats().total_edges == 1
 
 
+def test_export_validate_and_import_abhi_round_trip(tmp_path: Path) -> None:
+    source = make_graph(tmp_path / "source")
+    target = make_graph(tmp_path / "target")
+    decision = source.add_node(
+        label="Use PostgreSQL",
+        content="Use PostgreSQL for production.",
+        node_type=NodeType.DECISION,
+    ).node
+    reason = source.add_node(
+        label="Replication pain",
+        content="MySQL replication has been painful.",
+        node_type=NodeType.FACT,
+    ).node
+    source.add_edge(
+        source_id=decision.id,
+        target_id=reason.id,
+        relationship=RelationType.DEPENDS_ON,
+    )
+
+    exported = source.export_abhi(output_path=tmp_path / "memory.abhi")
+    validation = source.validate_abhi(input_path=exported.output_path)
+    imported = target.import_abhi(input_path=exported.output_path)
+
+    payload = load_abhi_document(exported.output_path)
+
+    with zipfile.ZipFile(exported.output_path) as archive:
+        assert "manifest.json" in archive.namelist()
+        assert "nodes.jsonl" in archive.namelist()
+    assert payload["manifest"]["schema_version"] == "2.0.0"
+    assert payload["graph"]["nodes"]
+    assert payload["integrity"]["content_hash"].startswith("sha256:")
+    assert validation.valid is True
+    assert imported.hash_verified is True
+    assert imported.nodes_created == 2
+    assert imported.edges_created == 1
+    assert target.get_stats().total_nodes == 2
+
+
+def test_export_import_export_abhi_round_trip_is_stable(tmp_path: Path) -> None:
+    source = make_graph(tmp_path / "source")
+    target = make_graph(tmp_path / "target")
+    decision = source.add_node(
+        label="Use PostgreSQL",
+        content="Use PostgreSQL for production.",
+        node_type=NodeType.DECISION,
+        agent_id="codex",
+        project="waggle-mcp",
+        session_id="thread-1",
+    ).node
+    reason = source.add_node(
+        label="Replication pain",
+        content="MySQL replication has been painful.",
+        node_type=NodeType.FACT,
+        agent_id="cursor",
+        project="waggle-mcp",
+        session_id="thread-1",
+    ).node
+    source.add_edge(
+        source_id=decision.id,
+        target_id=reason.id,
+        relationship=RelationType.DEPENDS_ON,
+    )
+    exported = source.export_abhi(
+        output_path=tmp_path / "first.abhi",
+        include_embeddings=True,
+    )
+    target.import_abhi(input_path=exported.output_path)
+    reexported = target.export_abhi(
+        output_path=tmp_path / "second.abhi",
+        include_embeddings=True,
+    )
+
+    first = load_abhi_document(exported.output_path)
+    second = load_abhi_document(reexported.output_path)
+
+    assert first["graph"] == second["graph"]
+    assert first["embeddings"] == second["embeddings"]
+    assert first["waggle"]["tenant_id"] == second["waggle"]["tenant_id"]
+    assert [item["id"] for item in first["waggle"]["context_windows"]] == [item["id"] for item in second["waggle"]["context_windows"]]
+    assert _sha256_file(Path(exported.output_path)) == _sha256_file(Path(reexported.output_path))
+
+
+def test_export_abhi_is_byte_identical_across_repeated_exports(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path / "source")
+    graph.add_node(
+        label="Use PostgreSQL",
+        content="Use PostgreSQL for production.",
+        node_type=NodeType.DECISION,
+        agent_id="codex",
+        project="waggle-mcp",
+        session_id="thread-1",
+    )
+    graph.observe_conversation(
+        user_message="Remember that the launch codeword is saffron-badger-v2.",
+        assistant_response="I'll remember that the launch codeword is saffron-badger-v2.",
+        project="waggle-mcp",
+        session_id="thread-1",
+    )
+
+    first = graph.export_abhi(output_path=tmp_path / "first.abhi", include_embeddings=True)
+    second = graph.export_abhi(output_path=tmp_path / "second.abhi", include_embeddings=True)
+
+    assert _sha256_file(Path(first.output_path)) == _sha256_file(Path(second.output_path))
+
+    with zipfile.ZipFile(first.output_path) as archive:
+        infos = {info.filename: info for info in archive.infolist()}
+    assert infos["manifest.json"].date_time == (2000, 1, 1, 0, 0, 0)
+    assert infos["nodes.jsonl"].date_time == (2000, 1, 1, 0, 0, 0)
+
+
+def test_export_abhi_includes_embeddings_and_source_app(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    node = graph.add_node(
+        label="Client note",
+        content="Codex created this note.",
+        node_type=NodeType.NOTE,
+        agent_id="codex",
+        project="waggle-mcp",
+    ).node
+
+    exported = graph.export_abhi(output_path=tmp_path / "embeddings.abhi", include_embeddings=True)
+    payload = load_abhi_document(exported.output_path)
+
+    assert payload["embeddings"]["vectors"][node.id]
+    assert payload["graph"]["nodes"][0]["metadata"]["source_app"] == "codex"
+
+
+def test_encrypted_abhi_requires_passphrase_and_round_trips(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path / "source")
+    imported = make_graph(tmp_path / "target")
+    graph.add_node(
+        label="Sensitive note",
+        content="Entire conversation history should be encrypted.",
+        node_type=NodeType.NOTE,
+    )
+
+    exported = graph.export_abhi(output_path=tmp_path / "secure.abhi", passphrase="secret-passphrase")
+    with zipfile.ZipFile(exported.output_path) as archive:
+        raw_manifest = json.loads(archive.read("manifest.json").decode("utf-8"))
+    assert raw_manifest["encryption"]["enabled"] is True
+
+    with pytest.raises(Exception):
+        load_abhi_document(exported.output_path)
+
+    decrypted = load_abhi_document(exported.output_path, passphrase="secret-passphrase")
+    assert decrypted["graph"]["nodes"][0]["content"] == "Entire conversation history should be encrypted."
+
+    imported_result = imported.import_abhi(input_path=exported.output_path, passphrase="secret-passphrase")
+    assert imported_result.nodes_created == 1
+
+
+def test_update_and_delete_edge(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    source = graph.add_node(
+        label="Source",
+        content="Source node",
+        node_type=NodeType.NOTE,
+    ).node
+    target = graph.add_node(
+        label="Target",
+        content="Target node",
+        node_type=NodeType.NOTE,
+    ).node
+    replacement = graph.add_node(
+        label="Replacement",
+        content="Replacement node",
+        node_type=NodeType.NOTE,
+    ).node
+    edge = graph.add_edge(
+        source_id=source.id,
+        target_id=target.id,
+        relationship=RelationType.RELATES_TO,
+    )
+
+    updated = graph.update_edge(
+        edge_id=edge.id,
+        target_id=replacement.id,
+        relationship=RelationType.DEPENDS_ON,
+        weight=0.4,
+    )
+    deleted = graph.delete_edge(edge_id=edge.id)
+
+    assert updated.target_id == replacement.id
+    assert updated.relationship == RelationType.DEPENDS_ON.value
+    assert updated.weight == 0.4
+    assert deleted.id == edge.id
+    assert graph.get_stats().total_edges == 0
+
+
+def test_ui_state_persists_and_round_trips_through_abhi(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path / "source")
+    imported = make_graph(tmp_path / "target")
+    node = graph.add_node(
+        label="Canvas Node",
+        content="Node with saved position",
+        node_type=NodeType.NOTE,
+        project="studio",
+    ).node
+    graph.save_ui_state(
+        project="studio",
+        positions={node.id: {"x": 111, "y": 222}},
+        zoom=1.25,
+        viewport={"center_x": 111, "center_y": 222},
+        selected_nodes=[node.id],
+    )
+
+    snapshot = graph.get_graph_snapshot(project="studio")
+    exported = graph.export_abhi(output_path=tmp_path / "memory.abhi", project="studio")
+    imported.import_abhi(input_path=exported.output_path)
+    imported_ui = imported.get_ui_state()
+
+    assert snapshot["ui"]["positions"][node.id] == {"x": 111, "y": 222}
+    payload = load_abhi_document(exported.output_path)
+    assert payload["ui"]["positions"][node.id] == {"x": 111, "y": 222}
+    assert imported_ui["positions"]
+    assert imported_ui["zoom"] == 1.25
+
+
+def test_execute_abhi_query_matches_recent_and_filtered_nodes(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    graph.add_node(
+        label="Database decision",
+        content="Use PostgreSQL for the main database.",
+        node_type=NodeType.DECISION,
+        project="studio",
+    )
+    graph.add_node(
+        label="Frontend note",
+        content="Keep the browser graph editor responsive.",
+        node_type=NodeType.NOTE,
+        project="studio",
+    )
+    exported = graph.export_abhi(output_path=tmp_path / "memory.abhi", project="studio")
+    document = load_abhi_document(exported.output_path)
+
+    filtered = execute_abhi_query(document, query_text="FIND nodes WHERE type='decision' AND content CONTAINS 'database'")
+    recent = execute_abhi_query(document, query_id="q1")
+
+    assert len(filtered["nodes"]) == 1
+    assert filtered["nodes"][0]["type"] == "decision"
+    assert recent["query_id"] == "q1"
+    assert len(recent["nodes"]) >= 1
+
+
+def test_diff_and_merge_abhi_files(tmp_path: Path) -> None:
+    base = make_graph(tmp_path / "base")
+    left = make_graph(tmp_path / "left")
+    right = make_graph(tmp_path / "right")
+
+    for graph in (base, left, right):
+        graph.add_node(
+            label="Decision",
+            content="Use PostgreSQL",
+            node_type=NodeType.DECISION,
+            project="studio",
+        )
+
+    left.add_node(
+        label="Reason",
+        content="Operational familiarity matters.",
+        node_type=NodeType.NOTE,
+        project="studio",
+    )
+    right_node = right.list_recent_nodes(limit=1, project="studio")[0]
+    right.update_node(node_id=right_node.id, content="Use PostgreSQL with managed backups")
+
+    base_file = base.export_abhi(output_path=tmp_path / "base.abhi", project="studio")
+    left_file = left.export_abhi(output_path=tmp_path / "left.abhi", project="studio")
+    right_file = right.export_abhi(output_path=tmp_path / "right.abhi", project="studio")
+
+    diff = diff_abhi_files(input_path_a=left_file.output_path, input_path_b=right_file.output_path)
+    merged = merge_abhi_files(
+        base_input_path=base_file.output_path,
+        left_input_path=left_file.output_path,
+        right_input_path=right_file.output_path,
+        output_path=tmp_path / "merged.abhi",
+    )
+
+    assert diff.nodes_added or diff.nodes_updated
+    assert Path(merged.output_path).exists()
+    merged_doc = load_abhi_document(merged.output_path)
+    assert merged_doc["integrity"]["content_hash"].startswith("sha256:")
+    assert merged.nodes_merged >= 1
+
+
+def test_query_abhi_file_updates_event_log_and_relevance_hits(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    graph.add_node(
+        label="Decision",
+        content="Use PostgreSQL for the main database.",
+        node_type=NodeType.DECISION,
+        project="studio",
+    )
+    exported = graph.export_abhi(output_path=tmp_path / "memory.abhi", project="studio")
+
+    result = query_abhi_file(input_path=exported.output_path, query_text="FIND nodes WHERE type='decision'")
+    document = load_abhi_document(exported.output_path)
+    assert result.node_count == 1
+    assert "queried_abhi" in result.executed_actions
+
+
+def test_export_abhi_builds_semantic_chunks_and_inspect_reports_them(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    for index in range(70):
+        graph.add_node(
+            label=f"Decision {index}",
+            content=f"Use PostgreSQL for service {index}",
+            node_type=NodeType.DECISION,
+            project="studio",
+        )
+    exported = graph.export_abhi(output_path=tmp_path / "chunked.abhi", project="studio")
+    inspected = graph.inspect_abhi(input_path=exported.output_path)
+    document = load_abhi_document(exported.output_path)
+    chunk_index = document["chunks"]["chunk_index"]
+
+    assert inspected.chunk_count >= 2
+    assert inspected.load_strategy in {"chunked", "full"}
+    assert inspected.preload_chunks
+    assert document["chunks"]["chunk_payloads"]
+    assert all(entry["byte_length"] > 0 for entry in chunk_index.values())
+
+
+def test_load_abhi_chunk_file_and_query_use_relevant_chunks(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    for index in range(70):
+        graph.add_node(
+            label=f"Decision {index}",
+            content=f"Use PostgreSQL for service {index}",
+            node_type=NodeType.DECISION,
+            project="studio",
+        )
+    for index in range(12):
+        graph.add_node(
+            label=f"Fact {index}",
+            content=f"MySQL replication issue {index}",
+            node_type=NodeType.FACT,
+            project="studio",
+        )
+    exported = graph.export_abhi(output_path=tmp_path / "chunked-query.abhi", project="studio")
+
+    loaded = load_abhi_chunk_file(
+        input_path=exported.output_path,
+        query_text="FIND nodes WHERE type='decision' AND content CONTAINS 'PostgreSQL'",
+    )
+    queried = query_abhi_file(
+        input_path=exported.output_path,
+        query_text="FIND nodes WHERE type='decision' AND content CONTAINS 'PostgreSQL'",
+    )
+
+    assert loaded.chunk_ids
+    assert loaded.available_chunk_count >= 2
+    assert loaded.node_count >= queried.node_count
+    assert queried.chunk_ids
+    assert queried.scanned_chunk_count >= len(queried.chunk_ids)
+    assert all(chunk_id.startswith("chunk-") for chunk_id in queried.chunk_ids)
+
+
 def test_export_graph_html_creates_visualization_file(tmp_path: Path) -> None:
     graph = make_graph(tmp_path)
     first = graph.add_node(
@@ -554,9 +929,9 @@ def test_query_replay_mode_returns_transcript_hits(tmp_path: Path) -> None:
         session_id="sess-db",
     )
 
-    assert result.retrieval_mode == "replay"
+    assert result.retrieval_mode == "verbatim"
     assert result.replay_hits
-    assert result.replay_hits[0].session_id == "sess-db"
+    assert result.replay_hits[0].turn_pair_id
     assert "PostgreSQL" in result.replay_hits[0].transcript_text
 
 
@@ -574,11 +949,11 @@ def test_query_fusion_mode_includes_graph_and_replay_provenance(tmp_path: Path) 
         max_nodes=5,
     )
 
-    assert result.retrieval_mode == "fusion"
+    assert result.retrieval_mode == "hybrid"
     assert result.replay_hits
-    assert result.fusion_hits
-    assert result.fusion_hits[0].source_lane in {"graph", "replay", "both"}
-    assert result.fusion_hits[0].fused_rank >= 1
+    assert result.hybrid_hits
+    assert result.hybrid_hits[0].source in {"transcript", "node", "both"}
+    assert result.hybrid_hits[0].score >= 0.0
 
 
 def test_query_graph_mode_uses_transcript_session_signal_for_node_ranking(tmp_path: Path) -> None:
@@ -703,7 +1078,7 @@ def test_export_context_bundle_fusion_includes_replay_hits(tmp_path: Path) -> No
     markdown = Path(exported.markdown_path).read_text(encoding="utf-8")
     payload = json.loads(Path(exported.json_path).read_text(encoding="utf-8"))
 
-    assert exported.retrieval_mode == "fusion"
+    assert exported.retrieval_mode == "hybrid"
     assert "## Replay Evidence" in markdown
     assert payload["replay_hits"]
 
@@ -905,6 +1280,24 @@ def test_observe_conversation_extracts_nodes(tmp_path: Path) -> None:
     assert all(node.valid_from is not None for node in result.stored_nodes)
 
 
+def test_observe_conversation_links_entity_mentions_within_turn(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+
+    result = graph.observe_conversation(
+        user_message="Let's use FastAPI in src/server.py.",
+        assistant_response="Understood.",
+    )
+
+    decision_node = next(node for node in result.stored_nodes if node.node_type == NodeType.DECISION)
+    path_node = next(node for node in result.stored_nodes if node.label == "src/server.py")
+    related = graph.get_related(node_id=decision_node.id, max_depth=1)
+
+    assert any(
+        edge.relationship == RelationType.RELATES_TO and edge.target_id == path_node.id
+        for edge in related.edges
+    )
+
+
 def test_observe_conversation_extracts_favorite_preference_statement(tmp_path: Path) -> None:
     graph = make_graph(tmp_path)
 
@@ -1097,11 +1490,35 @@ def test_query_can_filter_by_explicit_scopes(tmp_path: Path) -> None:
 
     assert [node.label for node in alpha.nodes] == ["DB choice alpha"]
     assert [node.label for node in beta.nodes] == ["DB choice beta"]
-    assert [node.label for node in new_session.nodes] == ["DB choice alpha"]
+    assert new_session.nodes == []
     assert missing_session_only.nodes == []
     assert scopes.agent_ids == ["claude", "codex"]
     assert scopes.projects == ["alpha", "beta"]
     assert scopes.session_ids == ["sess-alpha", "sess-beta"]
+
+
+def test_query_intersects_project_and_session_scope(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    graph.add_node(
+        label="Alpha session one",
+        content="Alpha project first session note.",
+        node_type=NodeType.NOTE,
+        project="alpha",
+        session_id="sess-1",
+    )
+    graph.add_node(
+        label="Alpha session two",
+        content="Alpha project second session note.",
+        node_type=NodeType.NOTE,
+        project="alpha",
+        session_id="sess-2",
+    )
+
+    sess_one = graph.query(query="alpha session note", project="alpha", session_id="sess-1", max_nodes=5, max_depth=0)
+    sess_two = graph.query(query="alpha session note", project="alpha", session_id="sess-2", max_nodes=5, max_depth=0)
+
+    assert [node.label for node in sess_one.nodes] == ["Alpha session one"]
+    assert [node.label for node in sess_two.nodes] == ["Alpha session two"]
 
 
 def test_observe_conversation_extracts_clean_database_and_auth_facts(tmp_path: Path) -> None:
@@ -1466,9 +1883,8 @@ def test_graph_diff_and_prime_context(tmp_path: Path) -> None:
 
     assert diff.added_nodes
     assert prime.nodes
-    assert new_session_prime.nodes
+    assert new_session_prime.nodes == []
     assert any("alpha" in node.tags for node in prime.nodes)
-    assert any("alpha" in node.tags for node in new_session_prime.nodes)
 
 
 def test_get_topics_returns_clusters(tmp_path: Path) -> None:
@@ -1496,3 +1912,119 @@ def test_get_topics_returns_clusters(tmp_path: Path) -> None:
 
     assert topics.total_clusters >= 1
     assert topics.clusters[0].nodes
+
+
+def test_observe_conversation_round_trip_stamps_transcript_embeddings_and_turn_pairs(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+
+    for index in range(10):
+        graph.observe_conversation(
+            user_message=f"I prefer Python for backend work. Can we use FastAPI {index}?",
+            assistant_response="Let's use FastAPI and store the API in src/server.py.",
+            session_id="roundtrip",
+            project="audit",
+        )
+
+    with graph._lock, graph._connect() as connection:
+        transcript_rows = connection.execute(
+            """
+            SELECT embedding, embedding_model_id, embedding_dim, content_hash, turn_pair_id
+            FROM transcript_records
+            WHERE tenant_id = ? AND session_id = ?
+            ORDER BY turn_index ASC
+            """,
+            (graph.tenant_id, "roundtrip"),
+        ).fetchall()
+        node_rows = connection.execute(
+            """
+            SELECT source_turn_pair_id
+            FROM nodes
+            WHERE tenant_id = ? AND session_id = ? AND source_turn_pair_id != ''
+            """,
+            (graph.tenant_id, "roundtrip"),
+        ).fetchall()
+
+    assert len(transcript_rows) == 20
+    assert all(row["embedding"] is not None for row in transcript_rows)
+    assert all(row["embedding_model_id"] == "fake-model:deterministic-v1" for row in transcript_rows)
+    assert all(int(row["embedding_dim"]) == 8 for row in transcript_rows)
+    assert all(row["content_hash"] for row in transcript_rows)
+    assert len({row["turn_pair_id"] for row in transcript_rows}) == 10
+    assert node_rows
+    assert all(row["source_turn_pair_id"] for row in node_rows)
+
+
+def test_observe_conversation_rolls_back_transcript_rows_on_extraction_failure(tmp_path: Path) -> None:
+    class ExplodingGraph(MemoryGraph):
+        def _apply_observation_candidates(self, **kwargs: object) -> object:  # type: ignore[override]
+            raise RuntimeError("boom")
+
+    graph = ExplodingGraph(tmp_path / "memory.db", FakeEmbeddingModel())
+
+    with pytest.raises(RuntimeError, match="boom"):
+        graph.observe_conversation(
+            user_message="Use PostgreSQL for production.",
+            assistant_response="Understood.",
+            session_id="atomicity",
+            project="audit",
+        )
+
+    with graph._lock, graph._connect() as connection:
+        transcript_count = int(
+            connection.execute(
+                "SELECT COUNT(*) FROM transcript_records WHERE tenant_id = ? AND session_id = ?",
+                (graph.tenant_id, "atomicity"),
+            ).fetchone()[0]
+        )
+        node_count = int(
+            connection.execute(
+                "SELECT COUNT(*) FROM nodes WHERE tenant_id = ? AND session_id = ?",
+                (graph.tenant_id, "atomicity"),
+            ).fetchone()[0]
+        )
+
+    assert transcript_count == 0
+    assert node_count == 0
+
+
+def test_abhi_round_trip_200_turn_graph_preserves_query_results(tmp_path: Path) -> None:
+    source = make_graph(tmp_path / "source")
+    restored = make_graph(tmp_path / "restored")
+
+    for index in range(200):
+        source.add_node(
+            label=f"Service {index}",
+            content=f"Service {index} uses codeword cobalt-{index} for deployment approval.",
+            node_type=NodeType.FACT,
+            project="roundtrip",
+            session_id=f"session-{index // 10}",
+        )
+    for index in range(10):
+        source.observe_conversation(
+            user_message=f"Remember transcript marker {index}.",
+            assistant_response=f"I'll remember transcript marker {index}.",
+            project="roundtrip",
+            session_id="transcripts",
+        )
+
+    before = source.query(query="cobalt-137", project="roundtrip", max_nodes=3)
+    exported = source.export_abhi(output_path=tmp_path / "roundtrip.abhi", project="roundtrip", include_embeddings=True)
+
+    restored.import_abhi(input_path=exported.output_path)
+    after = restored.query(query="cobalt-137", project="roundtrip", max_nodes=3)
+
+    assert before.nodes
+    assert after.nodes
+    assert before.nodes[0].content == after.nodes[0].content
+
+    reexported = restored.export_abhi(output_path=tmp_path / "roundtrip-reexport.abhi", project="roundtrip", include_embeddings=True)
+    first_doc = load_abhi_document(exported.output_path)
+    second_doc = load_abhi_document(reexported.output_path)
+
+    assert [(node["id"], node["content"]) for node in first_doc["graph"]["nodes"]] == [
+        (node["id"], node["content"]) for node in second_doc["graph"]["nodes"]
+    ]
+    assert [(row["id"], row["transcript_text"]) for row in first_doc["transcripts"]] == [
+        (row["id"], row["transcript_text"]) for row in second_doc["transcripts"]
+    ]
+    assert first_doc["manifest"]["counts"] == second_doc["manifest"]["counts"]

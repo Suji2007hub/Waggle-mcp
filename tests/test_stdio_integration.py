@@ -28,7 +28,7 @@ async def test_server_stdio_initialize_and_basic_calls(tmp_path: Path) -> None:
             assert init_result.serverInfo.name == "waggle"
 
             tools_result = await session.list_tools()
-            assert len(tools_result.tools) == 28
+            assert len(tools_result.tools) == 36
             assert {tool.name for tool in tools_result.tools} >= {
                 "store_node",
                 "query_graph",
@@ -49,9 +49,17 @@ async def test_server_stdio_initialize_and_basic_calls(tmp_path: Path) -> None:
                 "export_graph_html",
                 "window_graph_viz",
                 "export_graph_backup",
+                "export_abhi",
                 "export_context_bundle",
                 "export_markdown_vault",
                 "import_graph_backup",
+                "import_abhi",
+                "diff_abhi",
+                "merge_abhi",
+                "query_abhi",
+                "load_abhi_chunks",
+                "validate_abhi",
+                "inspect_abhi",
                 "import_markdown_vault",
             }
 

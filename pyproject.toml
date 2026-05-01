@@ -16,13 +16,23 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
+  "anthropic>=0.75.0",
   "anyio>=4.4.0",
+  "cryptography>=45.0.0",
+  "google-api-python-client>=2.170.0",
+  "google-auth>=2.40.0",
+  "google-genai>=1.56.0",
   "mcp>=1.0.0",
   "networkx>=3.2.1",
   "numpy>=1.26.0",
+  "openai>=2.14.0",
+  "portkey-ai>=2.1.0",
   "pydantic>=2.7.0",
+  "python-dotenv>=1.2.1",
   "python-louvain>=0.16",
   "pyvis>=0.3.2",
+  "requests>=2.32.5",
+  "rich>=13.0.0",
   "sentence-transformers>=2.6.0",
   "starlette>=0.37.2",
   "uvicorn>=0.30.0",
@@ -42,9 +52,32 @@ dev = [
 neo4j = [
   "neo4j>=5.20.0",
 ]
+rlm-ipython = [
+  "dill>=0.3.7",
+  "ipykernel>=6.0.0",
+  "ipython>=8.0.0",
+  "jupyter_client>=8.0.0",
+]
+rlm-modal = [
+  "dill>=0.3.7",
+  "modal>=0.73.0",
+]
+rlm-e2b = [
+  "dill>=0.3.7",
+  "e2b-code-interpreter>=0.0.11",
+]
+rlm-daytona = [
+  "daytona>=0.128.1",
+  "dill>=0.3.7",
+]
+rlm-prime = [
+  "dill>=0.3.7",
+  "prime-sandboxes>=0.2.0",
+]
 
 [project.scripts]
 waggle-mcp = "waggle.server:main"
+waggle = "waggle.server:main"
 
 [build-system]
 requires = ["setuptools>=69", "wheel"]
@@ -52,6 +85,9 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
+
+[tool.setuptools.package-data]
+waggle = ["static/graph/*", "static/graph/chunks/*", "static/graph/assets/*"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

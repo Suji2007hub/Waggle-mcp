@@ -73,6 +73,12 @@ def test_evaluate_longmemeval_graph_modes(tmp_path: Path) -> None:
     assert raw_report.r_at_5 == 1.0
     assert hybrid_report.r_at_5 == 1.0
     assert raw_report.per_case[0].retrieved_session_ids
+    assert raw_report.by_gold_cardinality["1"].count == 1
+    assert raw_report.by_gold_cardinality["1"].recall_at_5 == 1.0
+    assert raw_report.by_gold_cardinality["1"].exact_at_5 == 1.0
+    assert raw_report.by_gold_cardinality["1"].exact_at_10 == 1.0
+    assert raw_report.by_gold_cardinality["1"].exact_at_20 == 1.0
+    assert raw_report.per_case[0].query_id.startswith("entry_1")
 
 
 def test_evaluate_longmemeval_caches_repeated_session_embeddings(tmp_path: Path) -> None:
@@ -260,6 +266,67 @@ def test_graph_raw_uses_chunk_candidates_as_first_class_signal(tmp_path: Path) -
 
     assert report.r_at_5 == 1.0
     assert report.per_case[0].retrieved_session_ids[0] == "sess_uke"
+
+
+def test_report_surfaces_cardinality_breakdown_and_divergence_examples(tmp_path: Path) -> None:
+    dataset = [
+        {
+            "id": "case_single",
+            "question": "which session mentions PostgreSQL",
+            "haystack_sessions": [
+                [{"role": "user", "content": "We finalized the production database as PostgreSQL."}],
+                [{"role": "user", "content": "We finalized the production database as the main datastore."}],
+            ],
+            "haystack_session_ids": ["sess_exact", "sess_generic"],
+            "haystack_dates": ["2024/02/10 (Sat) 09:00", "2024/02/10 (Sat) 09:00"],
+            "correct_session_ids": ["sess_exact"],
+        },
+        {
+            "id": "case_multi",
+            "question": "which sessions mention the budget and launch timeline",
+            "haystack_sessions": [
+                [{"role": "user", "content": "The budget was approved for the product launch."}],
+                [{"role": "user", "content": "The team reviewed office snack options."}],
+                [{"role": "user", "content": "The launch timeline slipped by two weeks."}],
+                [{"role": "user", "content": "We booked the company retreat venue."}],
+                [{"role": "user", "content": "The budget forecast includes marketing."}],
+                [{"role": "user", "content": "Launch comms will go out on Tuesday."}],
+            ],
+            "haystack_session_ids": [
+                "sess_budget_primary",
+                "sess_snacks",
+                "sess_timeline",
+                "sess_retreat",
+                "sess_budget_secondary",
+                "sess_comms",
+            ],
+            "haystack_dates": [
+                "2024/02/10 (Sat) 09:00",
+                "2024/02/11 (Sun) 09:00",
+                "2024/02/12 (Mon) 09:00",
+                "2024/02/13 (Tue) 09:00",
+                "2024/02/14 (Wed) 09:00",
+                "2024/02/15 (Thu) 09:00",
+            ],
+            "correct_session_ids": ["sess_budget_primary", "sess_timeline", "sess_budget_secondary"],
+        },
+    ]
+    dataset_path = tmp_path / "longmemeval.json"
+    dataset_path.write_text(json.dumps(dataset), encoding="utf-8")
+
+    report = evaluate_longmemeval(dataset_path, embedding_model=FakeEmbeddingModel(), mode="graph_raw")
+    payload = report.to_dict()
+
+    assert payload["summary"]["by_gold_cardinality"]["1"]["count"] == 1
+    assert payload["summary"]["by_gold_cardinality"]["3"]["count"] == 1
+    assert "exact_at_10" in payload["summary"]
+    assert "exact_at_20" in payload["summary"]
+    assert len(payload["divergence_examples"]) <= 3
+    if payload["divergence_examples"]:
+        example = payload["divergence_examples"][0]
+        assert example["case_id"].startswith("case_")
+        assert set(example["missing"]).issubset(set(example["gold_set"]))
+
 
 def test_longmemeval_held_out_split(tmp_path):
     dataset_path = tmp_path / "longmemeval_split_test.json"

@@ -3,6 +3,12 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from waggle.models import (
+    AbhiChunkLoadResult,
+    AbhiDiffResult,
+    AbhiInspectResult,
+    AbhiMergeResult,
+    AbhiQueryResult,
+    AbhiValidationResult,
     ConflictEntry,
     ConflictListResult,
     ContextBundleExportResult,
@@ -35,7 +41,7 @@ def _format_updated_ago(timestamp: datetime) -> str:
 
 def serialize_subgraph(result: SubgraphResult) -> str:
     """Convert a subgraph result into readable text for an LLM."""
-    if result.retrieval_mode == "replay":
+    if result.retrieval_mode == "verbatim":
         if not result.replay_hits:
             return "=== Memory Replay Results: No results found ==="
         lines = [
@@ -47,6 +53,21 @@ def serialize_subgraph(result: SubgraphResult) -> str:
             lines.append(
                 f'• (session: {hit.session_id or "n/a"}, turn: {hit.turn_index}, role: {hit.role or "unknown"}) '
                 f'{hit.transcript_snippet or hit.transcript_text} [score={hit.score:.3f}]'
+            )
+        lines.extend(["", "=== End Results ==="])
+        return "\n".join(lines)
+
+    if result.retrieval_mode == "hybrid" and result.hybrid_hits:
+        lines = [
+            f"=== Hybrid Retrieval Results ({len(result.hybrid_hits)} hits) ===",
+            "",
+            "[TOP HITS]",
+        ]
+        for index, hit in enumerate(result.hybrid_hits, start=1):
+            reasoning = f" reason={hit.reasoning_from_reranker}" if hit.reasoning_from_reranker else ""
+            lines.append(
+                f"• #{index} [{hit.source}] {hit.content[:400]} [score={hit.score:.4f}] "
+                f"(turn_pair={hit.turn_pair_id or 'n/a'}, node_ids={hit.node_ids}){reasoning}"
             )
         lines.extend(["", "=== End Results ==="])
         return "\n".join(lines)
@@ -105,6 +126,129 @@ def serialize_subgraph(result: SubgraphResult) -> str:
             )
 
     lines.extend(["", "=== End Results ==="])
+    return "\n".join(lines)
+
+
+def serialize_abhi_validation(result: AbhiValidationResult) -> str:
+    lines = [
+        "=== ABHI Validation ===",
+        f"Valid: {'yes' if result.valid else 'no'}",
+        f"Nodes: {result.node_count}",
+        f"Edges: {result.edge_count}",
+        f"Spec version: {result.abhi_spec_version}",
+    ]
+    if result.content_hash:
+        lines.append(f"Content hash: {result.content_hash}")
+    if result.errors:
+        lines.extend(["", "[ERRORS]"])
+        lines.extend(f"• {error}" for error in result.errors)
+    if result.warnings:
+        lines.extend(["", "[WARNINGS]"])
+        lines.extend(f"• {warning}" for warning in result.warnings)
+    lines.append("=== End ABHI Validation ===")
+    return "\n".join(lines)
+
+
+def serialize_abhi_inspect(result: AbhiInspectResult) -> str:
+    lines = [
+        "=== ABHI Inspect ===",
+        f"Tenant: {result.tenant_id or 'n/a'}",
+        f"Nodes: {result.node_count}",
+        f"Edges: {result.edge_count}",
+        f"Schema version: {result.schema_version}",
+        f"Spec version: {result.abhi_spec_version}",
+        f"Constraints: {result.constraint_count}",
+        f"Versions: {result.version_count}",
+        f"Saved queries: {result.query_count}",
+        f"Events: {result.event_count}",
+        f"Chunks: {result.chunk_count}",
+        f"Load strategy: {result.load_strategy}",
+    ]
+    if result.preload_chunks:
+        lines.append(f"Preload chunks: {', '.join(result.preload_chunks)}")
+    if result.node_types:
+        lines.append(f"Node types: {', '.join(result.node_types)}")
+    if result.edge_types:
+        lines.append(f"Edge types: {', '.join(result.edge_types)}")
+    if result.content_hash:
+        lines.append(f"Content hash: {result.content_hash}")
+    lines.append("=== End ABHI Inspect ===")
+    return "\n".join(lines)
+
+
+def serialize_abhi_diff(result: AbhiDiffResult) -> str:
+    lines = [
+        "=== ABHI Diff ===",
+        f"File A: {result.input_path_a}",
+        f"File B: {result.input_path_b}",
+        f"Nodes added: {len(result.nodes_added)}",
+        f"Nodes removed: {len(result.nodes_removed)}",
+        f"Nodes updated: {len(result.nodes_updated)}",
+        f"Edges added: {len(result.edges_added)}",
+        f"Edges removed: {len(result.edges_removed)}",
+        f"Edges updated: {len(result.edges_updated)}",
+    ]
+    if result.semantic_changes:
+        lines.extend(["", "[SEMANTIC CHANGES]"])
+        lines.extend(f"• {item}" for item in result.semantic_changes)
+    lines.append("=== End ABHI Diff ===")
+    return "\n".join(lines)
+
+
+def serialize_abhi_merge(result: AbhiMergeResult) -> str:
+    lines = [
+        "=== ABHI Merge ===",
+        f"Base: {result.base_input_path}",
+        f"Left: {result.left_input_path}",
+        f"Right: {result.right_input_path}",
+        f"Output: {result.output_path}",
+        f"Strategy: {result.merge_strategy}",
+        f"Nodes merged: {result.nodes_merged}",
+        f"Edges merged: {result.edges_merged}",
+    ]
+    if result.content_hash:
+        lines.append(f"Content hash: {result.content_hash}")
+    if result.conflicts:
+        lines.extend(["", "[CONFLICTS]"])
+        lines.extend(f"• {item}" for item in result.conflicts)
+    lines.append("=== End ABHI Merge ===")
+    return "\n".join(lines)
+
+
+def serialize_abhi_query(result: AbhiQueryResult) -> str:
+    lines = [
+        "=== ABHI Query ===",
+        f"Input: {result.input_path}",
+        f"Query: {result.query}",
+        f"Nodes matched: {result.node_count}",
+        f"Edges matched: {result.edge_count}",
+    ]
+    if result.chunk_ids:
+        lines.append(f"Chunks scanned: {', '.join(result.chunk_ids)}")
+    elif result.scanned_chunk_count:
+        lines.append(f"Chunks scanned: {result.scanned_chunk_count}")
+    if result.summary:
+        lines.append(result.summary)
+    if result.executed_actions:
+        lines.extend(["", "[EVENT ACTIONS]"])
+        lines.extend(f"• {item}" for item in result.executed_actions)
+    lines.append("=== End ABHI Query ===")
+    return "\n".join(lines)
+
+
+def serialize_abhi_chunk_load(result: AbhiChunkLoadResult) -> str:
+    lines = [
+        "=== ABHI Chunk Load ===",
+        f"Input: {result.input_path}",
+        f"Load strategy: {result.load_strategy}",
+        f"Available chunks: {result.available_chunk_count}",
+        f"Loaded chunks: {', '.join(result.chunk_ids) if result.chunk_ids else 'none'}",
+        f"Nodes loaded: {result.node_count}",
+        f"Edges loaded: {result.edge_count}",
+    ]
+    if result.query:
+        lines.append(f"Query selector: {result.query}")
+    lines.append("=== End ABHI Chunk Load ===")
     return "\n".join(lines)
 
 

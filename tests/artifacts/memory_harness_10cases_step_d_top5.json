@@ -1,0 +1,112 @@
+{
+  "elapsed_seconds": 34.48872383300113,
+  "results": [
+    {
+      "case_id": "e47becba",
+      "question": "What degree did I graduate with?",
+      "top5": [
+        "answer_280352e9",
+        "02bd2b90_3",
+        "ultrachat_214101",
+        "f6859b48_2",
+        "ultrachat_530213"
+      ]
+    },
+    {
+      "case_id": "118b2229",
+      "question": "How long is my daily commute to work?",
+      "top5": [
+        "answer_40a90d51",
+        "db73b7e4_4",
+        "db50c0f6",
+        "7d8b5834_1",
+        "afe04238_1"
+      ]
+    },
+    {
+      "case_id": "51a45a95",
+      "question": "Where did I redeem a $5 coupon on coffee creamer?",
+      "top5": [
+        "answer_d61669c7",
+        "sharegpt_MKMWjX0_25",
+        "07ba9acd_2",
+        "98c198fb"
+      ]
+    },
+    {
+      "case_id": "58bf7951",
+      "question": "What play did I attend at the local community theater?",
+      "top5": [
+        "answer_355c48bb",
+        "1587bd78_1",
+        "5b83c26e_1",
+        "sharegpt_LG0uJvY_0",
+        "71f2f490_2"
+      ]
+    },
+    {
+      "case_id": "1e043500",
+      "question": "What is the name of the playlist I created on Spotify?",
+      "top5": [
+        "answer_3e012175",
+        "8020d945_2",
+        "01bd9def",
+        "sharegpt_bph7DTk_7",
+        "sharegpt_Clr6oyu_0"
+      ]
+    },
+    {
+      "case_id": "c5e8278d",
+      "question": "What was my last name before I changed it?",
+      "top5": [
+        "answer_f6168136",
+        "89b1028d_1",
+        "f58317c6",
+        "ultrachat_246365",
+        "89c1cdfa_1"
+      ]
+    },
+    {
+      "case_id": "6ade9755",
+      "question": "Where do I take yoga classes?",
+      "top5": [
+        "answer_9398da02",
+        "de5634fc_2",
+        "ultrachat_270925",
+        "ultrachat_462"
+      ]
+    },
+    {
+      "case_id": "6f9b354f",
+      "question": "What color did I repaint my bedroom walls?",
+      "top5": [
+        "answer_feb5200f",
+        "0c0f2449_2",
+        "a79f1a04_1",
+        "ultrachat_549317",
+        "a729934a_2"
+      ]
+    },
+    {
+      "case_id": "58ef2f1c",
+      "question": "When did I volunteer at the local animal shelter's fundraising dinner?",
+      "top5": [
+        "answer_59547700",
+        "e6ab6a7b_2",
+        "b17c7f18",
+        "403ee298_1"
+      ]
+    },
+    {
+      "case_id": "f8c5f88b",
+      "question": "Where did I buy my new tennis racket from?",
+      "top5": [
+        "answer_c3567066",
+        "91880423",
+        "15232887_1",
+        "394f846b",
+        "ultrachat_412973"
+      ]
+    }
+  ]
+}

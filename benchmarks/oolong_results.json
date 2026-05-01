@@ -1,0 +1,737 @@
+{
+  "dataset_path": "benchmarks/data/oolong_20.jsonl",
+  "dataset_kind": "auto",
+  "eval_mode": "waggle_llm",
+  "retrieval_mode": "graph",
+  "case_count": 20,
+  "scored_case_count": 13,
+  "accuracy": 0.0,
+  "max_nodes": 8,
+  "max_depth": 1,
+  "chunk_lines": 12,
+  "chunk_overlap_lines": 3,
+  "mean_retrieved_tokens": 596.3,
+  "mean_prompt_tokens": 788.0,
+  "per_case": [
+    {
+      "example_id": "example-0",
+      "context_window_id": "context-0",
+      "dataset_kind": "synth",
+      "question": "Each of the questions can be labelled as one of the labels: description and abstract concept, entity, human being, numeric value, location, abbreviation.\n\nIn the above data, list all pairs of user IDs (no duplicate pairs, list lower ID first) where both users have at least one instance with a numeric value or location.\n\nIn your answer, list all pairs in the format (user_id_1, user_id_2), separated by newlines.",
+      "gold_answer": "(110, 113) | (110, 116) | (113, 116)",
+      "predicted_answer": "(113, 116)",
+      "correct": false,
+      "retrieved_node_ids": [
+        "49843763-9f1e-4327-9fb4-dc85e5b432f7",
+        "27a98b2c-c9a3-418a-8604-f126b97cf7b3",
+        "c35acb85-2d23-4c26-af2b-debcc719b493",
+        "4d149d65-22de-404a-b065-ec04d82053cf",
+        "cb0cd6c8-27b4-43c7-91b2-a05e18bc1210",
+        "a38db07a-f59c-4e59-bc58-e1ca209ab003",
+        "547333ac-4d9c-4d06-ba52-89b606b81124",
+        "17921e5a-96ab-4c0a-ba2d-eee5316cac5d"
+      ],
+      "retrieved_node_labels": [
+        "OOLONG Chunk 9",
+        "OOLONG Chunk 1",
+        "OOLONG Chunk 2",
+        "OOLONG Chunk 3",
+        "OOLONG Chunk 4",
+        "OOLONG Chunk 6",
+        "OOLONG Chunk 7",
+        "OOLONG Chunk 8"
+      ],
+      "retrieved_node_count": 8,
+      "retrieved_tokens": 589,
+      "prompt_tokens": 780,
+      "metadata": {
+        "answer_type": "list",
+        "task_group": "oolong-pairs"
+      }
+    },
+    {
+      "example_id": "example-1",
+      "context_window_id": "context-1",
+      "dataset_kind": "synth",
+      "question": "Each of the questions can be labelled as one of the labels: description and abstract concept, entity, human being, numeric value, location, abbreviation.\n\nIn the above data, list all pairs of user IDs (no duplicate pairs, list lower ID first) where both users have at least one instance with a numeric value or location.\n\nIn your answer, list all pairs in the format (user_id_1, user_id_2), separated by newlines.",
+      "gold_answer": "(101, 102) | (101, 105) | (101, 107) | (101, 113) | (102, 105) | (102, 107) | (102, 113) | (105, 107) | (105, 113) | (107, 113)",
+      "predicted_answer": "(105, 116)",
+      "correct": false,
+      "retrieved_node_ids": [
+        "5b2bd0fe-80e9-4a13-9757-774d705b84c3",
+        "a38db07a-f59c-4e59-bc58-e1ca209ab003",
+        "547333ac-4d9c-4d06-ba52-89b606b81124",
+        "17921e5a-96ab-4c0a-ba2d-eee5316cac5d",
+        "94247163-e559-4717-8bd7-ff040d655a1e",
+        "3c650c8b-e7b0-4db8-bb5c-da313b04bcf2",
+        "26ead000-3b86-4d69-b2f9-c9f0dcc3d414",
+        "d15679d6-79d9-4377-8c71-83f564643524"
+      ],
+      "retrieved_node_labels": [
+        "OOLONG Chunk 1",
+        "OOLONG Chunk 6",
+        "OOLONG Chunk 7",
+        "OOLONG Chunk 8",
+        "OOLONG Chunk 14",
+        "OOLONG Chunk 15",
+        "OOLONG Chunk 16",
+        "OOLONG Chunk 17"
+      ],
+      "retrieved_node_count": 8,
+      "retrieved_tokens": 597,
+      "prompt_tokens": 788,
+      "metadata": {
+        "answer_type": "list",
+        "task_group": "oolong-pairs"
+      }
+    },
+    {
+      "example_id": "example-2",
+      "context_window_id": "context-2",
+      "dataset_kind": "synth",
+      "question": "Each of the questions can be labelled as one of the labels: description and abstract concept, entity, human being, numeric value, location, abbreviation.\n\nIn the above data, list all pairs of user IDs (no duplicate pairs, list lower ID first) where both users have at least one instance with a numeric value or location.\n\nIn your answer, list all pairs in the format (user_id_1, user_id_2), separated by newlines.",
+      "gold_answer": "(105, 106) | (105, 111) | (105, 112) | (105, 118) | (106, 111) | (106, 112) | (106, 118) | (111, 112) | (111, 118) | (112, 118)",
+      "predicted_answer": "",
+      "correct": false,
+      "retrieved_node_ids": [
+        "5b2bd0fe-80e9-4a13-9757-774d705b84c3",
+        "94247163-e559-4717-8bd7-ff040d655a1e",
+        "3c650c8b-e7b0-4db8-bb5c-da313b04bcf2",
+        "26ead000-3b86-4d69-b2f9-c9f0dcc3d414",
+        "257c0475-9b3c-4448-932e-70c4308233f7",
+        "673554a0-cda8-4e16-bf10-d92b07728b05",
+        "17d09d05-2b9c-49ed-b10e-37ca643f5bd2",
+        "6e6564a0-a0f3-4d2d-a451-567e13fa5b88"
+      ],
+      "retrieved_node_labels": [
+        "OOLONG Chunk 1",
+        "OOLONG Chunk 14",
+        "OOLONG Chunk 15",
+        "OOLONG Chunk 16",
+        "OOLONG Chunk 22",
+        "OOLONG Chunk 23",
+        "OOLONG Chunk 24",
+        "OOLONG Chunk 38"
+      ],
+      "retrieved_node_count": 8,
+      "retrieved_tokens": 601,
+      "prompt_tokens": 793,
+      "metadata": {
+        "answer_type": "list",
+        "task_group": "oolong-pairs"
+      }
+    },
+    {
+      "example_id": "example-3",
+      "context_window_id": "context-3",
+      "dataset_kind": "synth",
+      "question": "Each of the questions can be labelled as one of the labels: description and abstract concept, entity, human being, numeric value, location, abbreviation.\n\nIn the above data, list all pairs of user IDs (no duplicate pairs, list lower ID first) where both users have at least one instance with a numeric value or location.\n\nIn your answer, list all pairs in the format (user_id_1, user_id_2), separated by newlines.",
+      "gold_answer": "(100, 101) | (100, 111) | (100, 112) | (101, 111) | (101, 112) | (111, 112)",
+      "predicted_answer": "",
+      "correct": false,
+      "retrieved_node_ids": [
+        "5b2bd0fe-80e9-4a13-9757-774d705b84c3",
+        "257c0475-9b3c-4448-932e-70c4308233f7",
+        "673554a0-cda8-4e16-bf10-d92b07728b05",
+        "17d09d05-2b9c-49ed-b10e-37ca643f5bd2",
+        "6e6564a0-a0f3-4d2d-a451-567e13fa5b88",
+        "1fc4df3a-ce59-496a-87f3-993254d1b754",
+        "7aaf0f2b-4cac-4b4f-86e6-e970a57b76b0",
+        "41f699a4-fece-4bf1-8578-81844ec124c4"
+      ],
+      "retrieved_node_labels": [
+        "OOLONG Chunk 1",
+        "OOLONG Chunk 22",
+        "OOLONG Chunk 23",
+        "OOLONG Chunk 24",
+        "OOLONG Chunk 38",
+        "OOLONG Chunk 39",
+        "OOLONG Chunk 40",
+        "OOLONG Chunk 2"
+      ],
+      "retrieved_node_count": 8,
+      "retrieved_tokens": 600,
+      "prompt_tokens": 792,
+      "metadata": {
+        "answer_type": "list",
+        "task_group": "oolong-pairs"
+      }
+    },
+    {
+      "example_id": "example-4",
+      "context_window_id": "context-4",
+      "dataset_kind": "synth",
+      "question": "Each of the questions can be labelled as one of the labels: description and abstract concept, entity, human being, numeric value, location, abbreviation.\n\nIn the above data, list all pairs of user IDs (no duplicate pairs, list lower ID first) where both users have at least one instance with a numeric value or location.\n\nIn your answer, list all pairs in the format (user_id_1, user_id_2), separated by newlines.",
+      "gold_answer": "(103, 105) | (103, 109) | (103, 113) | (105, 109) | (105, 113) | (109, 113)",
+      "predicted_answer": "",
+      "correct": false,
+      "retrieved_node_ids": [
+        "5b2bd0fe-80e9-4a13-9757-774d705b84c3",
+        "257c0475-9b3c-4448-932e-70c4308233f7",
+        "673554a0-cda8-4e16-bf10-d92b07728b05",
+        "17d09d05-2b9c-49ed-b10e-37ca643f5bd2",
+        "6e6564a0-a0f3-4d2d-a451-567e13fa5b88",
+        "1fc4df3a-ce59-496a-87f3-993254d1b754",
+        "7aaf0f2b-4cac-4b4f-86e6-e970a57b76b0",
+        "41f699a4-fece-4bf1-8578-81844ec124c4"
+      ],
+      "retrieved_node_labels": [
+        "OOLONG Chunk 1",
+        "OOLONG Chunk 22",
+        "OOLONG Chunk 23",
+        "OOLONG Chunk 24",
+        "OOLONG Chunk 38",
+        "OOLONG Chunk 39",
+        "OOLONG Chunk 40",
+        "OOLONG Chunk 2"
+      ],
+      "retrieved_node_count": 8,
+      "retrieved_tokens": 600,
+      "prompt_tokens": 792,
+      "metadata": {
+        "answer_type": "list",
+        "task_group": "oolong-pairs"
+      }
+    },
+    {
+      "example_id": "example-5",
+      "context_window_id": "context-5",
+      "dataset_kind": "synth",
+      "question": "Each of the questions can be labelled as one of the labels: description and abstract concept, entity, human being, numeric value, location, abbreviation.\n\nIn the above data, list all pairs of user IDs (no duplicate pairs, list lower ID first) where both users have at least one instance with a numeric value or location.\n\nIn your answer, list all pairs in the format (user_id_1, user_id_2), separated by newlines.",
+      "gold_answer": "(107, 109) | (107, 115) | (107, 117) | (107, 118) | (109, 115) | (109, 117) | (109, 118) | (115, 117) | (115, 118) | (117, 118)",
+      "predicted_answer": "",
+      "correct": false,
+      "retrieved_node_ids": [
+        "5b2bd0fe-80e9-4a13-9757-774d705b84c3",
+        "257c0475-9b3c-4448-932e-70c4308233f7",
+        "673554a0-cda8-4e16-bf10-d92b07728b05",
+        "17d09d05-2b9c-49ed-b10e-37ca643f5bd2",
+        "6e6564a0-a0f3-4d2d-a451-567e13fa5b88",
+        "1fc4df3a-ce59-496a-87f3-993254d1b754",
+        "7aaf0f2b-4cac-4b4f-86e6-e970a57b76b0",
+        "41f699a4-fece-4bf1-8578-81844ec124c4"
+      ],
+      "retrieved_node_labels": [
+        "OOLONG Chunk 1",
+        "OOLONG Chunk 22",
+        "OOLONG Chunk 23",
+        "OOLONG Chunk 24",
+        "OOLONG Chunk 38",
+        "OOLONG Chunk 39",
+        "OOLONG Chunk 40",
+        "OOLONG Chunk 2"
+      ],
+      "retrieved_node_count": 8,
+      "retrieved_tokens": 600,
+      "prompt_tokens": 792,
+      "metadata": {
+        "answer_type": "list",
+        "task_group": "oolong-pairs"
+      }
+    },
+    {
+      "example_id": "example-6",
+      "context_window_id": "context-6",
+      "dataset_kind": "synth",
+      "question": "Each of the questions can be labelled as one of the labels: description and abstract concept, entity, human being, numeric value, location, abbreviation.\n\nIn the above data, list all pairs of user IDs (no duplicate pairs, list lower ID first) where both users have at least one instance with a numeric value or location.\n\nIn your answer, list all pairs in the format (user_id_1, user_id_2), separated by newlines.",
+      "gold_answer": "(104, 105) | (104, 111) | (105, 111)",
+      "predicted_answer": "",
+      "correct": false,
+      "retrieved_node_ids": [
+        "5b2bd0fe-80e9-4a13-9757-774d705b84c3",
+        "257c0475-9b3c-4448-932e-70c4308233f7",
+        "673554a0-cda8-4e16-bf10-d92b07728b05",
+        "17d09d05-2b9c-49ed-b10e-37ca643f5bd2",
+        "6e6564a0-a0f3-4d2d-a451-567e13fa5b88",
+        "1fc4df3a-ce59-496a-87f3-993254d1b754",
+        "7aaf0f2b-4cac-4b4f-86e6-e970a57b76b0",
+        "41f699a4-fece-4bf1-8578-81844ec124c4"
+      ],
+      "retrieved_node_labels": [
+        "OOLONG Chunk 1",
+        "OOLONG Chunk 22",
+        "OOLONG Chunk 23",
+        "OOLONG Chunk 24",
+        "OOLONG Chunk 38",
+        "OOLONG Chunk 39",
+        "OOLONG Chunk 40",
+        "OOLONG Chunk 2"
+      ],
+      "retrieved_node_count": 8,
+      "retrieved_tokens": 600,
+      "prompt_tokens": 792,
+      "metadata": {
+        "answer_type": "list",
+        "task_group": "oolong-pairs"
+      }
+    },
+    {
+      "example_id": "example-7",
+      "context_window_id": "context-7",
+      "dataset_kind": "synth",
+      "question": "Each of the questions can be labelled as one of the labels: description and abstract concept, entity, human being, numeric value, location, abbreviation.\n\nIn the above data, list all pairs of user IDs (no duplicate pairs, list lower ID first) where both users have at least one instance with a numeric value or location.\n\nIn your answer, list all pairs in the format (user_id_1, user_id_2), separated by newlines.",
+      "gold_answer": "(108, 114) | (108, 115) | (108, 118) | (114, 115) | (114, 118) | (115, 118)",
+      "predicted_answer": "",
+      "correct": false,
+      "retrieved_node_ids": [
+        "5b2bd0fe-80e9-4a13-9757-774d705b84c3",
+        "257c0475-9b3c-4448-932e-70c4308233f7",
+        "673554a0-cda8-4e16-bf10-d92b07728b05",
+        "17d09d05-2b9c-49ed-b10e-37ca643f5bd2",
+        "41f699a4-fece-4bf1-8578-81844ec124c4",
+        "653bb706-3c74-494c-a07a-37297b152300",
+        "1c932932-8ae4-4ebb-9d0d-02d32bc3c4b8",
+        "dc2bcf70-ff3b-41b2-a5fb-8f4af7f4a486"
+      ],
+      "retrieved_node_labels": [
+        "OOLONG Chunk 1",
+        "OOLONG Chunk 22",
+        "OOLONG Chunk 23",
+        "OOLONG Chunk 24",
+        "OOLONG Chunk 2",
+        "OOLONG Chunk 14",
+        "OOLONG Chunk 15",
+        "OOLONG Chunk 16"
+      ],
+      "retrieved_node_count": 8,
+      "retrieved_tokens": 600,
+      "prompt_tokens": 792,
+      "metadata": {
+        "answer_type": "list",
+        "task_group": "oolong-pairs"
+      }
+    },
+    {
+      "example_id": "example-8",
+      "context_window_id": "context-8",
+      "dataset_kind": "synth",
+      "question": "Each of the questions can be labelled as one of the labels: description and abstract concept, entity, human being, numeric value, location, abbreviation.\n\nIn the above data, list all pairs of user IDs (no duplicate pairs, list lower ID first) where both users have at least one instance with a numeric value or location.\n\nIn your answer, list all pairs in the format (user_id_1, user_id_2), separated by newlines.",
+      "gold_answer": "(117, 118) | (117, 119) | (118, 119)",
+      "predicted_answer": "",
+      "correct": false,
+      "retrieved_node_ids": [
+        "5b2bd0fe-80e9-4a13-9757-774d705b84c3",
+        "257c0475-9b3c-4448-932e-70c4308233f7",
+        "673554a0-cda8-4e16-bf10-d92b07728b05",
+        "17d09d05-2b9c-49ed-b10e-37ca643f5bd2",
+        "41f699a4-fece-4bf1-8578-81844ec124c4",
+        "653bb706-3c74-494c-a07a-37297b152300",
+        "1c932932-8ae4-4ebb-9d0d-02d32bc3c4b8",
+        "dc2bcf70-ff3b-41b2-a5fb-8f4af7f4a486"
+      ],
+      "retrieved_node_labels": [
+        "OOLONG Chunk 1",
+        "OOLONG Chunk 22",
+        "OOLONG Chunk 23",
+        "OOLONG Chunk 24",
+        "OOLONG Chunk 2",
+        "OOLONG Chunk 14",
+        "OOLONG Chunk 15",
+        "OOLONG Chunk 16"
+      ],
+      "retrieved_node_count": 8,
+      "retrieved_tokens": 600,
+      "prompt_tokens": 792,
+      "metadata": {
+        "answer_type": "list",
+        "task_group": "oolong-pairs"
+      }
+    },
+    {
+      "example_id": "example-9",
+      "context_window_id": "context-9",
+      "dataset_kind": "synth",
+      "question": "Each of the questions can be labelled as one of the labels: description and abstract concept, entity, human being, numeric value, location, abbreviation.\n\nIn the above data, list all pairs of user IDs (no duplicate pairs, list lower ID first) where both users have at least one instance with a numeric value or location.\n\nIn your answer, list all pairs in the format (user_id_1, user_id_2), separated by newlines.",
+      "gold_answer": "(102, 107) | (102, 113) | (102, 116) | (107, 113) | (107, 116) | (113, 116)",
+      "predicted_answer": "(105, 113)",
+      "correct": false,
+      "retrieved_node_ids": [
+        "5b2bd0fe-80e9-4a13-9757-774d705b84c3",
+        "41f699a4-fece-4bf1-8578-81844ec124c4",
+        "653bb706-3c74-494c-a07a-37297b152300",
+        "1c932932-8ae4-4ebb-9d0d-02d32bc3c4b8",
+        "dc2bcf70-ff3b-41b2-a5fb-8f4af7f4a486",
+        "f131bff6-8c27-4e3a-afee-c930f91ca1f8",
+        "ce6e5f9c-fd13-46d7-b767-41b728304e76",
+        "119da4ef-b275-4233-8977-5aeed8447885"
+      ],
+      "retrieved_node_labels": [
+        "OOLONG Chunk 1",
+        "OOLONG Chunk 2",
+        "OOLONG Chunk 14",
+        "OOLONG Chunk 15",
+        "OOLONG Chunk 16",
+        "OOLONG Chunk 22",
+        "OOLONG Chunk 23",
+        "OOLONG Chunk 24"
+      ],
+      "retrieved_node_count": 8,
+      "retrieved_tokens": 597,
+      "prompt_tokens": 788,
+      "metadata": {
+        "answer_type": "list",
+        "task_group": "oolong-pairs"
+      }
+    },
+    {
+      "example_id": "example-10",
+      "context_window_id": "context-10",
+      "dataset_kind": "synth",
+      "question": "Each of the questions can be labelled as one of the labels: description and abstract concept, entity, human being, numeric value, location, abbreviation.\n\nIn the above data, list all pairs of user IDs (no duplicate pairs, list lower ID first) where both users have at least one instance with a numeric value or location.\n\nIn your answer, list all pairs in the format (user_id_1, user_id_2), separated by newlines.",
+      "gold_answer": "(103, 105) | (103, 112) | (103, 116) | (103, 118) | (105, 112) | (105, 116) | (105, 118) | (112, 116) | (112, 118) | (116, 118)",
+      "predicted_answer": "(105, 112) | (105, 113) | (112, 113)",
+      "correct": false,
+      "retrieved_node_ids": [
+        "5b2bd0fe-80e9-4a13-9757-774d705b84c3",
+        "e98b78af-47e8-4098-a841-1420727c99c9",
+        "41f699a4-fece-4bf1-8578-81844ec124c4",
+        "653bb706-3c74-494c-a07a-37297b152300",
+        "1c932932-8ae4-4ebb-9d0d-02d32bc3c4b8",
+        "dc2bcf70-ff3b-41b2-a5fb-8f4af7f4a486",
+        "f131bff6-8c27-4e3a-afee-c930f91ca1f8",
+        "ce6e5f9c-fd13-46d7-b767-41b728304e76"
+      ],
+      "retrieved_node_labels": [
+        "OOLONG Chunk 1",
+        "OOLONG Chunk 19",
+        "OOLONG Chunk 2",
+        "OOLONG Chunk 14",
+        "OOLONG Chunk 15",
+        "OOLONG Chunk 16",
+        "OOLONG Chunk 22",
+        "OOLONG Chunk 23"
+      ],
+      "retrieved_node_count": 8,
+      "retrieved_tokens": 593,
+      "prompt_tokens": 785,
+      "metadata": {
+        "answer_type": "list",
+        "task_group": "oolong-pairs"
+      }
+    },
+    {
+      "example_id": "example-11",
+      "context_window_id": "context-11",
+      "dataset_kind": "synth",
+      "question": "Each of the questions can be labelled as one of the labels: description and abstract concept, entity, human being, numeric value, location, abbreviation.\n\nIn the above data, list all pairs of user IDs (no duplicate pairs, list lower ID first) where both users have at least one instance with a numeric value or location.\n\nIn your answer, list all pairs in the format (user_id_1, user_id_2), separated by newlines.",
+      "gold_answer": "(105, 106) | (105, 108) | (105, 110) | (105, 115) | (106, 108) | (106, 110) | (106, 115) | (108, 110) | (108, 115) | (110, 115)",
+      "predicted_answer": "(105, 112) | (105, 113) | (112, 113)",
+      "correct": false,
+      "retrieved_node_ids": [
+        "5b2bd0fe-80e9-4a13-9757-774d705b84c3",
+        "e98b78af-47e8-4098-a841-1420727c99c9",
+        "41f699a4-fece-4bf1-8578-81844ec124c4",
+        "653bb706-3c74-494c-a07a-37297b152300",
+        "1c932932-8ae4-4ebb-9d0d-02d32bc3c4b8",
+        "dc2bcf70-ff3b-41b2-a5fb-8f4af7f4a486",
+        "f131bff6-8c27-4e3a-afee-c930f91ca1f8",
+        "ce6e5f9c-fd13-46d7-b767-41b728304e76"
+      ],
+      "retrieved_node_labels": [
+        "OOLONG Chunk 1",
+        "OOLONG Chunk 19",
+        "OOLONG Chunk 2",
+        "OOLONG Chunk 14",
+        "OOLONG Chunk 15",
+        "OOLONG Chunk 16",
+        "OOLONG Chunk 22",
+        "OOLONG Chunk 23"
+      ],
+      "retrieved_node_count": 8,
+      "retrieved_tokens": 593,
+      "prompt_tokens": 785,
+      "metadata": {
+        "answer_type": "list",
+        "task_group": "oolong-pairs"
+      }
+    },
+    {
+      "example_id": "example-12",
+      "context_window_id": "context-12",
+      "dataset_kind": "synth",
+      "question": "Each of the questions can be labelled as one of the labels: description and abstract concept, entity, human being, numeric value, location, abbreviation.\n\nIn the above data, list all pairs of user IDs (no duplicate pairs, list lower ID first) where both users have at least one instance with a numeric value or location.\n\nIn your answer, list all pairs in the format (user_id_1, user_id_2), separated by newlines.",
+      "gold_answer": "(100, 104) | (100, 105) | (100, 119) | (104, 105) | (104, 119) | (105, 119)",
+      "predicted_answer": "(105, 112) | (105, 113) | (112, 113)",
+      "correct": false,
+      "retrieved_node_ids": [
+        "5b2bd0fe-80e9-4a13-9757-774d705b84c3",
+        "e98b78af-47e8-4098-a841-1420727c99c9",
+        "41f699a4-fece-4bf1-8578-81844ec124c4",
+        "653bb706-3c74-494c-a07a-37297b152300",
+        "1c932932-8ae4-4ebb-9d0d-02d32bc3c4b8",
+        "dc2bcf70-ff3b-41b2-a5fb-8f4af7f4a486",
+        "f131bff6-8c27-4e3a-afee-c930f91ca1f8",
+        "ce6e5f9c-fd13-46d7-b767-41b728304e76"
+      ],
+      "retrieved_node_labels": [
+        "OOLONG Chunk 1",
+        "OOLONG Chunk 19",
+        "OOLONG Chunk 2",
+        "OOLONG Chunk 14",
+        "OOLONG Chunk 15",
+        "OOLONG Chunk 16",
+        "OOLONG Chunk 22",
+        "OOLONG Chunk 23"
+      ],
+      "retrieved_node_count": 8,
+      "retrieved_tokens": 593,
+      "prompt_tokens": 785,
+      "metadata": {
+        "answer_type": "list",
+        "task_group": "oolong-pairs"
+      }
+    },
+    {
+      "example_id": "example-13",
+      "context_window_id": "context-13",
+      "dataset_kind": "synth",
+      "question": "Each of the questions can be labelled as one of the labels: description and abstract concept, entity, human being, numeric value, location, abbreviation.\n\nIn the above data, list all pairs of user IDs (no duplicate pairs, list lower ID first) where both users have at least one instance with a numeric value or location.\n\nIn your answer, list all pairs in the format (user_id_1, user_id_2), separated by newlines.",
+      "gold_answer": "(101, 111) | (101, 115) | (111, 115)",
+      "predicted_answer": "(105, 112) | (105, 113) | (112, 113)",
+      "correct": false,
+      "retrieved_node_ids": [
+        "5b2bd0fe-80e9-4a13-9757-774d705b84c3",
+        "e98b78af-47e8-4098-a841-1420727c99c9",
+        "41f699a4-fece-4bf1-8578-81844ec124c4",
+        "653bb706-3c74-494c-a07a-37297b152300",
+        "1c932932-8ae4-4ebb-9d0d-02d32bc3c4b8",
+        "dc2bcf70-ff3b-41b2-a5fb-8f4af7f4a486",
+        "f131bff6-8c27-4e3a-afee-c930f91ca1f8",
+        "ce6e5f9c-fd13-46d7-b767-41b728304e76"
+      ],
+      "retrieved_node_labels": [
+        "OOLONG Chunk 1",
+        "OOLONG Chunk 19",
+        "OOLONG Chunk 2",
+        "OOLONG Chunk 14",
+        "OOLONG Chunk 15",
+        "OOLONG Chunk 16",
+        "OOLONG Chunk 22",
+        "OOLONG Chunk 23"
+      ],
+      "retrieved_node_count": 8,
+      "retrieved_tokens": 593,
+      "prompt_tokens": 785,
+      "metadata": {
+        "answer_type": "list",
+        "task_group": "oolong-pairs"
+      }
+    },
+    {
+      "example_id": "example-14",
+      "context_window_id": "context-14",
+      "dataset_kind": "synth",
+      "question": "Each of the questions can be labelled as one of the labels: description and abstract concept, entity, human being, numeric value, location, abbreviation.\n\nIn the above data, list all pairs of user IDs (no duplicate pairs, list lower ID first) where both users have at least one instance with a numeric value or location.\n\nIn your answer, list all pairs in the format (user_id_1, user_id_2), separated by newlines.",
+      "gold_answer": "(104, 105) | (104, 113) | (104, 118) | (104, 119) | (105, 113) | (105, 118) | (105, 119) | (113, 118) | (113, 119) | (118, 119)",
+      "predicted_answer": "(105, 112) | (105, 113) | (112, 113)",
+      "correct": false,
+      "retrieved_node_ids": [
+        "5b2bd0fe-80e9-4a13-9757-774d705b84c3",
+        "e98b78af-47e8-4098-a841-1420727c99c9",
+        "41f699a4-fece-4bf1-8578-81844ec124c4",
+        "653bb706-3c74-494c-a07a-37297b152300",
+        "1c932932-8ae4-4ebb-9d0d-02d32bc3c4b8",
+        "dc2bcf70-ff3b-41b2-a5fb-8f4af7f4a486",
+        "f131bff6-8c27-4e3a-afee-c930f91ca1f8",
+        "ce6e5f9c-fd13-46d7-b767-41b728304e76"
+      ],
+      "retrieved_node_labels": [
+        "OOLONG Chunk 1",
+        "OOLONG Chunk 19",
+        "OOLONG Chunk 2",
+        "OOLONG Chunk 14",
+        "OOLONG Chunk 15",
+        "OOLONG Chunk 16",
+        "OOLONG Chunk 22",
+        "OOLONG Chunk 23"
+      ],
+      "retrieved_node_count": 8,
+      "retrieved_tokens": 593,
+      "prompt_tokens": 785,
+      "metadata": {
+        "answer_type": "list",
+        "task_group": "oolong-pairs"
+      }
+    },
+    {
+      "example_id": "example-15",
+      "context_window_id": "context-15",
+      "dataset_kind": "synth",
+      "question": "Each of the questions can be labelled as one of the labels: description and abstract concept, entity, human being, numeric value, location, abbreviation.\n\nIn the above data, list all pairs of user IDs (no duplicate pairs, list lower ID first) where both users have at least one instance with a numeric value or location.\n\nIn your answer, list all pairs in the format (user_id_1, user_id_2), separated by newlines.",
+      "gold_answer": "(101, 102) | (101, 109) | (101, 115) | (102, 109) | (102, 115) | (109, 115)",
+      "predicted_answer": "(105, 112) | (105, 113) | (112, 113)",
+      "correct": false,
+      "retrieved_node_ids": [
+        "5b2bd0fe-80e9-4a13-9757-774d705b84c3",
+        "e98b78af-47e8-4098-a841-1420727c99c9",
+        "41f699a4-fece-4bf1-8578-81844ec124c4",
+        "653bb706-3c74-494c-a07a-37297b152300",
+        "1c932932-8ae4-4ebb-9d0d-02d32bc3c4b8",
+        "dc2bcf70-ff3b-41b2-a5fb-8f4af7f4a486",
+        "f131bff6-8c27-4e3a-afee-c930f91ca1f8",
+        "ce6e5f9c-fd13-46d7-b767-41b728304e76"
+      ],
+      "retrieved_node_labels": [
+        "OOLONG Chunk 1",
+        "OOLONG Chunk 19",
+        "OOLONG Chunk 2",
+        "OOLONG Chunk 14",
+        "OOLONG Chunk 15",
+        "OOLONG Chunk 16",
+        "OOLONG Chunk 22",
+        "OOLONG Chunk 23"
+      ],
+      "retrieved_node_count": 8,
+      "retrieved_tokens": 593,
+      "prompt_tokens": 785,
+      "metadata": {
+        "answer_type": "list",
+        "task_group": "oolong-pairs"
+      }
+    },
+    {
+      "example_id": "example-16",
+      "context_window_id": "context-16",
+      "dataset_kind": "synth",
+      "question": "Each of the questions can be labelled as one of the labels: description and abstract concept, entity, human being, numeric value, location, abbreviation.\n\nIn the above data, list all pairs of user IDs (no duplicate pairs, list lower ID first) where both users have at least one instance with a numeric value or location.\n\nIn your answer, list all pairs in the format (user_id_1, user_id_2), separated by newlines.",
+      "gold_answer": "(104, 106) | (104, 109) | (104, 114) | (104, 119) | (106, 109) | (106, 114) | (106, 119) | (109, 114) | (109, 119) | (114, 119)",
+      "predicted_answer": "(105, 112) | (105, 113) | (112, 113)",
+      "correct": false,
+      "retrieved_node_ids": [
+        "5b2bd0fe-80e9-4a13-9757-774d705b84c3",
+        "e98b78af-47e8-4098-a841-1420727c99c9",
+        "41f699a4-fece-4bf1-8578-81844ec124c4",
+        "653bb706-3c74-494c-a07a-37297b152300",
+        "1c932932-8ae4-4ebb-9d0d-02d32bc3c4b8",
+        "dc2bcf70-ff3b-41b2-a5fb-8f4af7f4a486",
+        "f131bff6-8c27-4e3a-afee-c930f91ca1f8",
+        "ce6e5f9c-fd13-46d7-b767-41b728304e76"
+      ],
+      "retrieved_node_labels": [
+        "OOLONG Chunk 1",
+        "OOLONG Chunk 19",
+        "OOLONG Chunk 2",
+        "OOLONG Chunk 14",
+        "OOLONG Chunk 15",
+        "OOLONG Chunk 16",
+        "OOLONG Chunk 22",
+        "OOLONG Chunk 23"
+      ],
+      "retrieved_node_count": 8,
+      "retrieved_tokens": 593,
+      "prompt_tokens": 785,
+      "metadata": {
+        "answer_type": "list",
+        "task_group": "oolong-pairs"
+      }
+    },
+    {
+      "example_id": "example-17",
+      "context_window_id": "context-17",
+      "dataset_kind": "synth",
+      "question": "Each of the questions can be labelled as one of the labels: description and abstract concept, entity, human being, numeric value, location, abbreviation.\n\nIn the above data, list all pairs of user IDs (no duplicate pairs, list lower ID first) where both users have at least one instance with a numeric value or location.\n\nIn your answer, list all pairs in the format (user_id_1, user_id_2), separated by newlines.",
+      "gold_answer": "(103, 109) | (103, 116) | (103, 117) | (103, 119) | (109, 116) | (109, 117) | (109, 119) | (116, 117) | (116, 119) | (117, 119)",
+      "predicted_answer": "(105, 112)",
+      "correct": false,
+      "retrieved_node_ids": [
+        "5b2bd0fe-80e9-4a13-9757-774d705b84c3",
+        "e98b78af-47e8-4098-a841-1420727c99c9",
+        "41f699a4-fece-4bf1-8578-81844ec124c4",
+        "653bb706-3c74-494c-a07a-37297b152300",
+        "1c932932-8ae4-4ebb-9d0d-02d32bc3c4b8",
+        "dc2bcf70-ff3b-41b2-a5fb-8f4af7f4a486",
+        "290a78e7-20bd-4f49-8c6c-de5e1cd670f3",
+        "ea1c7b41-5d70-4109-a2f2-c7d55812afee"
+      ],
+      "retrieved_node_labels": [
+        "OOLONG Chunk 1",
+        "OOLONG Chunk 19",
+        "OOLONG Chunk 2",
+        "OOLONG Chunk 14",
+        "OOLONG Chunk 15",
+        "OOLONG Chunk 16",
+        "OOLONG Chunk 38",
+        "OOLONG Chunk 39"
+      ],
+      "retrieved_node_count": 8,
+      "retrieved_tokens": 597,
+      "prompt_tokens": 788,
+      "metadata": {
+        "answer_type": "list",
+        "task_group": "oolong-pairs"
+      }
+    },
+    {
+      "example_id": "example-18",
+      "context_window_id": "context-18",
+      "dataset_kind": "synth",
+      "question": "Each of the questions can be labelled as one of the labels: description and abstract concept, entity, human being, numeric value, location, abbreviation.\n\nIn the above data, list all pairs of user IDs (no duplicate pairs, list lower ID first) where both users have at least one instance with a numeric value or location.\n\nIn your answer, list all pairs in the format (user_id_1, user_id_2), separated by newlines.",
+      "gold_answer": "(104, 106) | (104, 110) | (104, 111) | (104, 115) | (106, 110) | (106, 111) | (106, 115) | (110, 111) | (110, 115) | (111, 115)",
+      "predicted_answer": "(105, 112)",
+      "correct": false,
+      "retrieved_node_ids": [
+        "5b2bd0fe-80e9-4a13-9757-774d705b84c3",
+        "e98b78af-47e8-4098-a841-1420727c99c9",
+        "41f699a4-fece-4bf1-8578-81844ec124c4",
+        "290a78e7-20bd-4f49-8c6c-de5e1cd670f3",
+        "ea1c7b41-5d70-4109-a2f2-c7d55812afee",
+        "d6a4fa39-b7c2-439b-acde-cd15c4af85b6",
+        "ac946e8e-0964-44e2-b9bb-eeeb57542765",
+        "950f05d8-2ee6-4c2e-9477-bbd2558a21c2"
+      ],
+      "retrieved_node_labels": [
+        "OOLONG Chunk 1",
+        "OOLONG Chunk 19",
+        "OOLONG Chunk 2",
+        "OOLONG Chunk 38",
+        "OOLONG Chunk 39",
+        "OOLONG Chunk 38",
+        "OOLONG Chunk 39",
+        "OOLONG Chunk 40"
+      ],
+      "retrieved_node_count": 8,
+      "retrieved_tokens": 597,
+      "prompt_tokens": 788,
+      "metadata": {
+        "answer_type": "list",
+        "task_group": "oolong-pairs"
+      }
+    },
+    {
+      "example_id": "example-19",
+      "context_window_id": "context-19",
+      "dataset_kind": "synth",
+      "question": "Each of the questions can be labelled as one of the labels: description and abstract concept, entity, human being, numeric value, location, abbreviation.\n\nIn the above data, list all pairs of user IDs (no duplicate pairs, list lower ID first) where both users have at least one instance with a numeric value or location.\n\nIn your answer, list all pairs in the format (user_id_1, user_id_2), separated by newlines.",
+      "gold_answer": "(103, 109) | (103, 111) | (103, 115) | (103, 119) | (109, 111) | (109, 115) | (109, 119) | (111, 115) | (111, 119) | (115, 119)",
+      "predicted_answer": "(105, 112)",
+      "correct": false,
+      "retrieved_node_ids": [
+        "5b2bd0fe-80e9-4a13-9757-774d705b84c3",
+        "e98b78af-47e8-4098-a841-1420727c99c9",
+        "41f699a4-fece-4bf1-8578-81844ec124c4",
+        "290a78e7-20bd-4f49-8c6c-de5e1cd670f3",
+        "ea1c7b41-5d70-4109-a2f2-c7d55812afee",
+        "d6a4fa39-b7c2-439b-acde-cd15c4af85b6",
+        "ac946e8e-0964-44e2-b9bb-eeeb57542765",
+        "950f05d8-2ee6-4c2e-9477-bbd2558a21c2"
+      ],
+      "retrieved_node_labels": [
+        "OOLONG Chunk 1",
+        "OOLONG Chunk 19",
+        "OOLONG Chunk 2",
+        "OOLONG Chunk 38",
+        "OOLONG Chunk 39",
+        "OOLONG Chunk 38",
+        "OOLONG Chunk 39",
+        "OOLONG Chunk 40"
+      ],
+      "retrieved_node_count": 8,
+      "retrieved_tokens": 597,
+      "prompt_tokens": 788,
+      "metadata": {
+        "answer_type": "list",
+        "task_group": "oolong-pairs"
+      }
+    }
+  ]
+}

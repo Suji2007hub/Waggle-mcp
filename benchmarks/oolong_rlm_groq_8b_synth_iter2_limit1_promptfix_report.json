@@ -1,0 +1,124 @@
+{
+  "dataset_path": "benchmarks/data/oolong_synthetic_20.jsonl",
+  "dataset_kind": "auto",
+  "eval_mode": "waggle_rlm",
+  "retrieval_mode": "graph",
+  "case_count": 1,
+  "scored_case_count": 1,
+  "accuracy": 1.0,
+  "max_nodes": 8,
+  "max_depth": 1,
+  "chunk_lines": 12,
+  "chunk_overlap_lines": 3,
+  "mean_retrieved_tokens": 514.0,
+  "mean_prompt_tokens": 104.0,
+  "per_case": [
+    {
+      "example_id": "example-0",
+      "context_window_id": "context-0",
+      "dataset_kind": "synth",
+      "question": "Each of the questions can be labelled as one of the labels: description and abstract concept, entity, human being, numeric value, location, abbreviation.\n\nIn the above data, list all pairs of user IDs (no duplicate pairs, list lower ID first) where both users have at least one instance with a numeric value or location.\n\nIn your answer, list all pairs in the format (user_id_1, user_id_2), separated by newlines.",
+      "gold_answer": "(101, 102)",
+      "predicted_answer": "(101, 102)",
+      "correct": true,
+      "retrieved_node_ids": [
+        "0283b123-cdc7-4b61-b4d1-4f08c80aad4a",
+        "28991ade-c042-409c-8539-5ed2c94db5fc",
+        "56d2b17c-9ca1-4509-88a8-7c83fdbb1e49",
+        "56f37dd1-c8a9-4e7f-a85b-b737b2095d5e",
+        "7bad90f7-7684-45f5-96ca-f8bb1a067473",
+        "b9fc7480-054f-42e3-8e51-3760965eac78",
+        "bc995422-a103-4383-adfc-27c38cb69aaa",
+        "d947ef35-e6df-43a0-8ee5-25c6674a5151",
+        "daf59555-719e-4737-83a8-2597b47c0d53"
+      ],
+      "retrieved_node_labels": [
+        "OOLONG Chunk 1",
+        "OOLONG Chunk 2",
+        "OOLONG Chunk 12",
+        "OOLONG Chunk 6",
+        "OOLONG Chunk 9",
+        "OOLONG Chunk 10",
+        "OOLONG Chunk 5",
+        "OOLONG Chunk 7",
+        "OOLONG Chunk 11"
+      ],
+      "retrieved_node_count": 9,
+      "retrieved_tokens": 514,
+      "prompt_tokens": 104,
+      "metadata": {
+        "answer_type": "list",
+        "task_group": "oolong-pairs",
+        "rlm_response": "(101, 102)",
+        "rlm_metadata": {
+          "run_metadata": {
+            "root_model": "llama-3.1-8b-instant",
+            "max_depth": 1,
+            "max_iterations": 2,
+            "backend": "openai",
+            "backend_kwargs": {
+              "base_url": "https://api.groq.com/openai/v1",
+              "model_name": "llama-3.1-8b-instant"
+            },
+            "environment_type": "local",
+            "environment_kwargs": {},
+            "other_backends": null
+          },
+          "iterations": [
+            {
+              "type": "iteration",
+              "iteration": 1,
+              "timestamp": "2026-05-01T07:24:38.952064",
+              "prompt": [
+                {
+                  "role": "system",
+                  "content": "Use Waggle retrieval first. Treat raw `context` as fallback only. When you need tool execution, reply with exactly one ```repl``` block and no extra prose. Never use ```python. If the question asks for pairs of user IDs matching labels or properties, your very first action must be exactly: `final_answer = answer_pair_users_by_label(query, labels=[...], top_k=8)` then `FINAL_VAR(\"final_answer\")` in the same `repl` block. For pair-shaped questions, do not call `answer_with_waggle`, `extract_waggle_records`, `classify_waggle_records`, `index_waggle_fields`, `search_waggle`, or `read_node` before trying `answer_pair_users_by_label`. As soon as qualifying users are identified for a pair-shaped question, finalize immediately and stop. Do not do extra exploration after you have enough evidence. For non-pair questions, first action: `answer_with_waggle(question=\"...\", top_k=3)`. If you need structure, use `extract_waggle_records(query, top_k=3)`, `classify_waggle_records(query, top_k=3)`, or `index_waggle_fields(query, field_name, top_k=3)`. Only use `search_waggle` or `read_node` for targeted follow-up. Do not import modules, do not invent fields or objects, and do not parse raw node dicts by guessing keys. Structured helpers already expose `user`, `date`, `text`, and semantic `label`. When you are done, return the final answer using FINAL_VAR(...) or FINAL(...)."
+                },
+                {
+                  "role": "user",
+                  "content": "Your context is a str with 2138 total characters, and is broken up into chunks of char lengths: [2138]."
+                },
+                {
+                  "role": "user",
+                  "content": "You have not interacted with the REPL environment or seen your prompt / context yet. Your next action should be to look through and figure out how to answer the prompt, so don't just provide a final answer yet.\n\nThink step-by-step on what to do using the REPL environment (which contains the context) to answer the original prompt: \"Each of the questions can be labelled as one of the labels: description and abstract concept, entity, human being, numeric value, location, abbreviation.\n\nIn the above data, list all pairs of user IDs (no duplicate pairs, list lower ID first) where both users have at least one instance with a numeric value or location.\n\nIn your answer, list all pairs in the format (user_id_1, user_id_2), separated by newlines.\".\n\nContinue using the REPL environment, which has the `context` variable, and querying sub-LLMs by writing to ```repl``` tags, and determine your answer. Your next action:"
+                }
+              ],
+              "response": "```repl\nfinal_answer = answer_pair_users_by_label(query=\"list all pairs of user IDs where both users have at least one instance with a numeric value or location\", labels=[\"numeric value\", \"location\"], top_k=8)\nFINAL_VAR(\"final_answer\")\n```",
+              "code_blocks": [
+                {
+                  "code": "final_answer = answer_pair_users_by_label(query=\"list all pairs of user IDs where both users have at least one instance with a numeric value or location\", labels=[\"numeric value\", \"location\"], top_k=8)\nFINAL_VAR(\"final_answer\")",
+                  "result": {
+                    "stdout": "[\n  {\n    \"example_id\": \"1\",\n    \"text\": \"The company reported record profits.\",\n    \"user\": \"102\",\n    \"date\": \"2026-04-26\",\n    \"label\": \"entity\",\n    \"semantic_label\": \"entity\",\n    \"node_id\": \"0283b123-cdc7-4b61-b4d1-4f08c80aad4a\",\n    \"node_label\": \"OOLONG Chunk 1\"\n  },\n  {\n    \"example_id\": \"2\",\n    \"text\": \"The distance is 50 miles.\",\n    \"user\": \"102\",\n    \"date\": \"2026-04-18\",\n    \"label\": \"numeric value\",\n    \"semantic_label\": \"numeric value\",\n    \"node_id\": \"0283b123-cdc7-4b61-b4d1-4f08c80aad4a\",\n    \"node_label\": \"OOLONG Chunk 1\"\n  },\n  {\n    \"example_id\": \"3\",\n    \"text\": \"Democracy is a form of government.\",\n    \"user\": \"100\",\n    \"date\": \"2026-04-16\",\n    \"label\": \"entity\",\n    \"semantic_label\": \"entity\",\n    \"node_id\": \"0283b123-cdc7-4b61-b4d1-4f08c80aad4a\",\n    \"node_label\": \"OOLONG Chunk 1\"\n  },\n  {\n    \"example_id\": \"24\",\n    \"text\": \"Freedom is a state of mind.\",\n    \"user\": \"102\",\n    \"date\": \"2026-04-05\",\n    \"label\": \"entity\",\n    \"semantic_label\": \"entity\",\n    \"node_id\": \"daf59555-719e-4737-83a8-2597b47c0d53\",\n    \"node_label\": \"OOLONG Chunk 11\"\n  },\n  {\n    \"example_id\": \"25\",\n    \"text\": \"Paris is the capital of France.\",\n    \"user\": \"101\",\n    \"date\": \"2026-04-15\",\n    \"label\": \"entity\",\n    \"semantic_label\": \"entity\",\n    \"node_id\": \"daf59555-719e-4737-83a8-2597b47c0d53\",\n    \"node_label\": \"OOLONG Chunk 11\"\n  },\n  {\n    \"example_id\": \"13\",\n    \"text\": \"It costs 10 dollars.\",\n    \"user\": \"101\",\n    \"date\": \"2026-04-10\",\n    \"label\": \"numeric value\",\n    \"semantic_label\": \"numeric value\",\n    \"node_id\": \"56f37dd1-c8a9-4e7f-a85b-b737b2095d5e\",\n    \"node_label\": \"OOLONG Chunk 6\"\n  },\n  {\n    \"example_id\": \"14\",\n    \"text\": \"The company reported record profits.\",\n    \"user\": \"102\",\n    \"date\": \"2026-04-25\",\n    \"label\": \"entity\",\n    \"semantic_label\": \"entity\",\n    \"node_id\": \"56f37dd1-c8a9-4e7f-a85b-b737b2095d5e\",\n    \"node_label\": \"OOLONG Chunk 6\"\n  },\n  {\n    \"example_id\": \"10\",\n    \"text\": \"NASA stands for National Aeronautics and Space Administration.\",\n    \"user\": \"100\",\n    \"date\": \"2026-04-24\",\n    \"label\": \"entity\",\n    \"semantic_label\": \"entity\",\n    \"node_id\": \"bc995422-a103-4383-adfc-27c38cb69aaa\",\n    \"node_label\": \"OOLONG Chunk 5\"\n  },\n  {\n    \"example_id\": \"11\",\n    \"text\": \"NASA stands for National Aeronautics and Space Administration.\",\n    \"user\": \"102\",\n    \"date\": \"2026-04-20\",\n    \"label\": \"entity\",\n    \"semantic_label\": \"entity\",\n    \"node_id\": \"bc995422-a103-4383-adfc-27c38cb69aaa\",\n    \"node_label\": \"OOLONG Chunk 5\"\n  },\n  {\n    \"example_id\": \"12\",\n    \"text\": \"The office is in New York.\",\n    \"user\": \"102\",\n    \"date\": \"2026-04-25\",\n    \"label\": \"entity\",\n    \"semantic_label\": \"entity\",\n    \"node_id\": \"bc995422-a103-4383-adfc-27c38cb69aaa\",\n    \"node_label\": \"OOLONG Chunk 5\"\n  },\n  {\n    \"example_id\": \"22\",\n    \"text\": \"The committee approved the proposal.\",\n    \"user\": \"102\",\n    \"date\": \"2026-04-05\",\n    \"label\": \"entity\",\n    \"semantic_label\": \"entity\",\n    \"node_id\": \"b9fc7480-054f-42e3-8e51-3760965eac78\",\n    \"node_label\": \"OOLONG Chunk 10\"\n  },\n  {\n    \"example_id\": \"23\",\n    \"text\": \"WHO is the World Health Organization.\",\n    \"user\": \"100\",\n    \"date\": \"2026-04-20\",\n    \"label\": \"entity\",\n    \"semantic_label\": \"entity\",\n    \"node_id\": \"b9fc7480-054f-42e3-8e51-3760965eac78\",\n    \"node_label\": \"OOLONG Chunk 10\"\n  },\n  {\n    \"example_id\": \"26\",\n    \"text\": \"John Doe is a software engineer.\",\n    \"user\": \"101\",\n    \"date\": \"2026-04-18\",\n    \"label\": \"entity\",\n    \"semantic_label\": \"entity\",\n    \"node_id\": \"56d2b17c-9ca1-4509-88a8-7c83fdbb1e49\",\n    \"node_label\": \"OOLONG Chunk 12\"\n  },\n  {\n    \"example_id\": \"27\",\n    \"text\": \"Justice is blind.\",\n    \"user\": \"100\",\n    \"date\": \"2026-04-07\",\n    \"label\": \"entity\",\n    \"semantic_label\": \"entity\",\n    \"node_id\": \"56d2b17c-9ca1-4509-88a8-7c83fdbb1e49\",\n    \"node_label\": \"OOLONG Chunk 12\"\n  },\n  {\n    \"example_id\": \"15\",\n    \"text\": \"The temperature is 75 degrees.\",\n    \"user\": \"102\",\n    \"date\": \"2026-04-15\",\n    \"label\": \"numeric value\",\n    \"semantic_label\": \"numeric value\",\n    \"node_id\": \"d947ef35-e6df-43a0-8ee5-25c6674a5151\",\n    \"node_label\": \"OOLONG Chunk 7\"\n  },\n  {\n    \"example_id\": \"16\",\n    \"text\": \"Freedom is a state of mind.\",\n    \"user\": \"102\",\n    \"date\": \"2026-04-09\",\n    \"label\": \"entity\",\n    \"semantic_label\": \"entity\",\n    \"node_id\": \"d947ef35-e6df-43a0-8ee5-25c6674a5151\",\n    \"node_label\": \"OOLONG Chunk 7\"\n  },\n  {\n    \"example_id\": \"4\",\n    \"text\": \"CEO means Chief Executive Officer.\",\n    \"user\": \"101\",\n    \"date\": \"2026-04-25\",\n    \"label\": \"entity\",\n    \"semantic_label\": \"entity\",\n    \"node_id\": \"28991ade-c042-409c-8539-5ed2c94db5fc\",\n    \"node_label\": \"OOLONG Chunk 2\"\n  },\n  {\n    \"example_id\": \"5\",\n    \"text\": \"The park is downtown.\",\n    \"user\": \"101\",\n    \"date\": \"2026-04-21\",\n    \"label\": \"entity\",\n    \"semantic_label\": \"entity\",\n    \"node_id\": \"28991ade-c042-409c-8539-5ed2c94db5fc\",\n    \"node_label\": \"OOLONG Chunk 2\"\n  },\n  {\n    \"example_id\": \"19\",\n    \"text\": \"The president gave a speech.\",\n    \"user\": \"100\",\n    \"date\": \"2026-04-30\",\n    \"label\": \"entity\",\n    \"semantic_label\": \"entity\",\n    \"node_id\": \"7bad90f7-7684-45f5-96ca-f8bb1a067473\",\n    \"node_label\": \"OOLONG Chunk 9\"\n  },\n  {\n    \"example_id\": \"20\",\n    \"text\": \"Albert Einstein was a physicist.\",\n    \"user\": \"102\",\n    \"date\": \"2026-04-08\",\n    \"label\": \"entity\",\n    \"semantic_label\": \"entity\",\n    \"node_id\": \"7bad90f7-7684-45f5-96ca-f8bb1a067473\",\n    \"node_label\": \"OOLONG Chunk 9\"\n  },\n  {\n    \"example_id\": \"21\",\n    \"text\": \"Google released a new product.\",\n    \"user\": \"100\",\n    \"date\": \"2026-04-19\",\n    \"label\": \"entity\",\n    \"semantic_label\": \"entity\",\n    \"node_id\": \"7bad90f7-7684-45f5-96ca-f8bb1a067473\",\n    \"node_label\": \"OOLONG Chunk 9\"\n  }\n]\n[\n  [\n    \"101\",\n    \"102\"\n  ]\n]\n(101, 102)\n",
+                    "stderr": "",
+                    "locals": {
+                      "f": "<_io.TextIOWrapper name='/var/folders/k5/6k_0nvvx0bq31hqdrfp1p04m0000gn/T/repl_env_cf513ac9-aba7-43c3-a8f6-1088e3c0d34c_csglqrct/context_0.txt' mode='r' encoding='UTF-8'>",
+                      "context_0": "Example 1:\nText: The company reported record profits.\nUser: 102\nDate: 2026-04-26\n\nExample 2:\nText: The distance is 50 miles.\nUser: 102\nDate: 2026-04-18\n\nExample 3:\nText: Democracy is a form of government.\nUser: 100\nDate: 2026-04-16\n\nExample 4:\nText: CEO means Chief Executive Officer.\nUser: 101\nDate: 2026-04-25\n\nExample 5:\nText: The park is downtown.\nUser: 101\nDate: 2026-04-21\n\nExample 6:\nText: The committee approved the proposal.\nUser: 101\nDate: 2026-04-25\n\nExample 7:\nText: Freedom is a state of mind.\nUser: 101\nDate: 2026-04-06\n\nExample 8:\nText: Democracy is a form of government.\nUser: 102\nDate: 2026-04-16\n\nExample 9:\nText: John Doe is a software engineer.\nUser: 101\nDate: 2026-04-24\n\nExample 10:\nText: NASA stands for National Aeronautics and Space Administration.\nUser: 100\nDate: 2026-04-24\n\nExample 11:\nText: NASA stands for National Aeronautics and Space Administration.\nUser: 102\nDate: 2026-04-20\n\nExample 12:\nText: The office is in New York.\nUser: 102\nDate: 2026-04-25\n\nExample 13:\nText: It costs 10 dollars.\nUser: 101\nDate: 2026-04-10\n\nExample 14:\nText: The company reported record profits.\nUser: 102\nDate: 2026-04-25\n\nExample 15:\nText: The temperature is 75 degrees.\nUser: 102\nDate: 2026-04-15\n\nExample 16:\nText: Freedom is a state of mind.\nUser: 102\nDate: 2026-04-09\n\nExample 17:\nText: CEO means Chief Executive Officer.\nUser: 102\nDate: 2026-04-01\n\nExample 18:\nText: Democracy is a form of government.\nUser: 101\nDate: 2026-04-05\n\nExample 19:\nText: The president gave a speech.\nUser: 100\nDate: 2026-04-30\n\nExample 20:\nText: Albert Einstein was a physicist.\nUser: 102\nDate: 2026-04-08\n\nExample 21:\nText: Google released a new product.\nUser: 100\nDate: 2026-04-19\n\nExample 22:\nText: The committee approved the proposal.\nUser: 102\nDate: 2026-04-05\n\nExample 23:\nText: WHO is the World Health Organization.\nUser: 100\nDate: 2026-04-20\n\nExample 24:\nText: Freedom is a state of mind.\nUser: 102\nDate: 2026-04-05\n\nExample 25:\nText: Paris is the capital of France.\nUser: 101\nDate: 2026-04-15\n\nExample 26:\nText: John Doe is a software engineer.\nUser: 101\nDate: 2026-04-18\n\nExample 27:\nText: Justice is blind.\nUser: 100\nDate: 2026-04-07",
+                      "context": "Example 1:\nText: The company reported record profits.\nUser: 102\nDate: 2026-04-26\n\nExample 2:\nText: The distance is 50 miles.\nUser: 102\nDate: 2026-04-18\n\nExample 3:\nText: Democracy is a form of government.\nUser: 100\nDate: 2026-04-16\n\nExample 4:\nText: CEO means Chief Executive Officer.\nUser: 101\nDate: 2026-04-25\n\nExample 5:\nText: The park is downtown.\nUser: 101\nDate: 2026-04-21\n\nExample 6:\nText: The committee approved the proposal.\nUser: 101\nDate: 2026-04-25\n\nExample 7:\nText: Freedom is a state of mind.\nUser: 101\nDate: 2026-04-06\n\nExample 8:\nText: Democracy is a form of government.\nUser: 102\nDate: 2026-04-16\n\nExample 9:\nText: John Doe is a software engineer.\nUser: 101\nDate: 2026-04-24\n\nExample 10:\nText: NASA stands for National Aeronautics and Space Administration.\nUser: 100\nDate: 2026-04-24\n\nExample 11:\nText: NASA stands for National Aeronautics and Space Administration.\nUser: 102\nDate: 2026-04-20\n\nExample 12:\nText: The office is in New York.\nUser: 102\nDate: 2026-04-25\n\nExample 13:\nText: It costs 10 dollars.\nUser: 101\nDate: 2026-04-10\n\nExample 14:\nText: The company reported record profits.\nUser: 102\nDate: 2026-04-25\n\nExample 15:\nText: The temperature is 75 degrees.\nUser: 102\nDate: 2026-04-15\n\nExample 16:\nText: Freedom is a state of mind.\nUser: 102\nDate: 2026-04-09\n\nExample 17:\nText: CEO means Chief Executive Officer.\nUser: 102\nDate: 2026-04-01\n\nExample 18:\nText: Democracy is a form of government.\nUser: 101\nDate: 2026-04-05\n\nExample 19:\nText: The president gave a speech.\nUser: 100\nDate: 2026-04-30\n\nExample 20:\nText: Albert Einstein was a physicist.\nUser: 102\nDate: 2026-04-08\n\nExample 21:\nText: Google released a new product.\nUser: 100\nDate: 2026-04-19\n\nExample 22:\nText: The committee approved the proposal.\nUser: 102\nDate: 2026-04-05\n\nExample 23:\nText: WHO is the World Health Organization.\nUser: 100\nDate: 2026-04-20\n\nExample 24:\nText: Freedom is a state of mind.\nUser: 102\nDate: 2026-04-05\n\nExample 25:\nText: Paris is the capital of France.\nUser: 101\nDate: 2026-04-15\n\nExample 26:\nText: John Doe is a software engineer.\nUser: 101\nDate: 2026-04-18\n\nExample 27:\nText: Justice is blind.\nUser: 100\nDate: 2026-04-07",
+                      "final_answer": "(101, 102)"
+                    },
+                    "execution_time": 0.6913375420008379,
+                    "rlm_calls": [],
+                    "final_answer": null
+                  }
+                }
+              ],
+              "final_answer": "(101, 102)",
+              "iteration_time": 1.0803928339992126
+            }
+          ]
+        },
+        "rlm_visited_node_ids": [
+          "0283b123-cdc7-4b61-b4d1-4f08c80aad4a",
+          "28991ade-c042-409c-8539-5ed2c94db5fc",
+          "56d2b17c-9ca1-4509-88a8-7c83fdbb1e49",
+          "56f37dd1-c8a9-4e7f-a85b-b737b2095d5e",
+          "7bad90f7-7684-45f5-96ca-f8bb1a067473",
+          "b9fc7480-054f-42e3-8e51-3760965eac78",
+          "bc995422-a103-4383-adfc-27c38cb69aaa",
+          "d947ef35-e6df-43a0-8ee5-25c6674a5151",
+          "daf59555-719e-4737-83a8-2597b47c0d53"
+        ]
+      }
+    }
+  ]
+}

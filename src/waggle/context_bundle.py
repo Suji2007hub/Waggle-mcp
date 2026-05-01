@@ -245,7 +245,7 @@ def build_query_summary(
     elif update_count:
         parts.append(f"{update_count} update edge{'s' if update_count != 1 else ''} included.")
 
-    if replay_hits and retrieval_mode in {"replay", "fusion"}:
+    if replay_hits and retrieval_mode in {"replay", "fusion", "verbatim", "hybrid"}:
         parts.append(f"{len(replay_hits)} replay hit{'s' if len(replay_hits) != 1 else ''} included for provenance.")
 
     if not parts:

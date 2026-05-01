@@ -1,0 +1,1279 @@
+{
+  "corpus": {
+    "conversation_count": 50,
+    "query_count": 30,
+    "total_transcript_tokens": 132485,
+    "avg_tokens_per_conversation": 2649.7,
+    "max_tokens_per_conversation": 2885,
+    "dataset_path": "benchmarks/generated/token_efficiency_dataset.json"
+  },
+  "rag_config": {
+    "requested_embedding_model": "text-embedding-3-small",
+    "actual_embedding_model": "all-MiniLM-L6-v2",
+    "chunk_size_tokens": 512,
+    "chunk_overlap_tokens": 64,
+    "top_k": 5
+  },
+  "waggle_config": {
+    "embedding_model": "all-MiniLM-L6-v2",
+    "retrieval_mode": "graph",
+    "max_nodes": 5,
+    "max_depth": 2,
+    "expand_depth": 0,
+    "tiered_retrieval": false,
+    "tiered_top_k_windows": 3
+  },
+  "actual_embeddings": {
+    "waggle": "all-MiniLM-L6-v2",
+    "rag": "all-MiniLM-L6-v2",
+    "rag_source": "local_fallback"
+  },
+  "summaries": {
+    "waggle_graph": {
+      "system": "waggle_graph",
+      "avg_input_tokens_per_query": 175.3,
+      "avg_retrieved_context_tokens": 158.3,
+      "recall_at_k": 0.8333333333333334,
+      "multi_hop_accuracy": 0.0,
+      "latency_p50_seconds": 0.0534676874995057,
+      "latency_p95_seconds": 0.08635202050018051,
+      "avg_node_count": 3.8666666666666667,
+      "avg_edge_count": 4.833333333333333,
+      "metadata": {
+        "avg_subgraph_nodes": 3.8666666666666667
+      }
+    },
+    "vanilla_rag": {
+      "system": "vanilla_rag",
+      "avg_input_tokens_per_query": 1308.9333333333334,
+      "avg_retrieved_context_tokens": 1291.9333333333334,
+      "recall_at_k": 0.8333333333333334,
+      "multi_hop_accuracy": 0.1,
+      "latency_p50_seconds": 7.448496750499544,
+      "latency_p95_seconds": 10.983549862200015,
+      "avg_node_count": null,
+      "avg_edge_count": null,
+      "metadata": {
+        "chunk_count": 497
+      }
+    }
+  },
+  "examples": [
+    {
+      "query_id": "database_factual",
+      "kind": "factual",
+      "query": "What is the current production choice for database?",
+      "gold_fact_ids": [
+        "database_new"
+      ],
+      "waggle_retrieval_mode": "graph",
+      "waggle_nodes": [
+        "Database current state: The current production choice for database is PostgreSQL production.",
+        "Database previous state: The previous baseline for database was SQLite local only.",
+        "Database change reason: The reason the team changed database is safer migrations and parity.",
+        "Database dependency: The analytics joins workflow depends on the current database choice."
+      ],
+      "waggle_edges": [
+        "c6648dc4-9116-45b6-a90c-0e89dcde4baa->updates->60dd5d04-8f39-4d0e-bce6-f21d1abf57aa",
+        "c6648dc4-9116-45b6-a90c-0e89dcde4baa->contradicts->60dd5d04-8f39-4d0e-bce6-f21d1abf57aa",
+        "8b632c77-29d4-4853-b8af-e5a3f15ce7ed->depends_on->c6648dc4-9116-45b6-a90c-0e89dcde4baa",
+        "61dd3d9d-45a3-4279-8aad-21523ff8a2b2->depends_on->c6648dc4-9116-45b6-a90c-0e89dcde4baa",
+        "61dd3d9d-45a3-4279-8aad-21523ff8a2b2->relates_to->8b632c77-29d4-4853-b8af-e5a3f15ce7ed"
+      ],
+      "rag_chunks": [
+        "choice is now PostgreSQL production.. User: People also discussed naming consistency, reporting requirements, support load, sprint scheduling, and documentation debt tied to For database, the current production choice is now PostgreSQL prod",
+        "incident history, rollback options, and coordination overhead around database thread 2. Agent: People also discussed naming consistency, reporting requirements, support load, sprint scheduling, and documentation debt tied to database thread",
+        "also discussed naming consistency, reporting requirements, support load, sprint scheduling, and documentation debt tied to For database, the current baseline is SQLite local only.."
+      ]
+    },
+    {
+      "query_id": "database_relational",
+      "kind": "relational",
+      "query": "What replaced the older database baseline and why was it changed?",
+      "gold_fact_ids": [
+        "database_new",
+        "database_reason"
+      ],
+      "waggle_retrieval_mode": "graph",
+      "waggle_nodes": [
+        "Database previous state: The previous baseline for database was SQLite local only.",
+        "Database current state: The current production choice for database is PostgreSQL production.",
+        "Database change reason: The reason the team changed database is safer migrations and parity.",
+        "Database owner: The owner for the database stack is the Database platform team.",
+        "Database dependency: The analytics joins workflow depends on the current database choice."
+      ],
+      "waggle_edges": [
+        "c6648dc4-9116-45b6-a90c-0e89dcde4baa->updates->60dd5d04-8f39-4d0e-bce6-f21d1abf57aa",
+        "c6648dc4-9116-45b6-a90c-0e89dcde4baa->contradicts->60dd5d04-8f39-4d0e-bce6-f21d1abf57aa",
+        "8b632c77-29d4-4853-b8af-e5a3f15ce7ed->depends_on->c6648dc4-9116-45b6-a90c-0e89dcde4baa",
+        "61dd3d9d-45a3-4279-8aad-21523ff8a2b2->depends_on->c6648dc4-9116-45b6-a90c-0e89dcde4baa",
+        "61dd3d9d-45a3-4279-8aad-21523ff8a2b2->relates_to->8b632c77-29d4-4853-b8af-e5a3f15ce7ed"
+      ],
+      "rag_chunks": [
+        "also discussed naming consistency, reporting requirements, support load, sprint scheduling, and documentation debt tied to For database, the current baseline is SQLite local only..",
+        "incident history, rollback options, and coordination overhead around database thread 1. Agent: People also discussed naming consistency, reporting requirements, support load, sprint scheduling, and documentation debt tied to database thread",
+        "tradeoffs, onboarding pain points, incident history, rollback options, and coordination overhead around For analytics, the current baseline is daily batch exports.. User: People also discussed naming consistency, reporting requirements, sup"
+      ]
+    },
+    {
+      "query_id": "database_multi_hop",
+      "kind": "multi_hop",
+      "query": "For database, which current choice supports analytics joins, and who owns that stack?",
+      "gold_fact_ids": [
+        "database_new",
+        "database_dependency",
+        "database_owner"
+      ],
+      "waggle_retrieval_mode": "graph",
+      "waggle_nodes": [
+        "Database dependency: The analytics joins workflow depends on the current database choice.",
+        "Database current state: The current production choice for database is PostgreSQL production.",
+        "Database previous state: The previous baseline for database was SQLite local only.",
+        "Database change reason: The reason the team changed database is safer migrations and parity."
+      ],
+      "waggle_edges": [
+        "c6648dc4-9116-45b6-a90c-0e89dcde4baa->updates->60dd5d04-8f39-4d0e-bce6-f21d1abf57aa",
+        "c6648dc4-9116-45b6-a90c-0e89dcde4baa->contradicts->60dd5d04-8f39-4d0e-bce6-f21d1abf57aa",
+        "8b632c77-29d4-4853-b8af-e5a3f15ce7ed->depends_on->c6648dc4-9116-45b6-a90c-0e89dcde4baa",
+        "61dd3d9d-45a3-4279-8aad-21523ff8a2b2->depends_on->c6648dc4-9116-45b6-a90c-0e89dcde4baa",
+        "61dd3d9d-45a3-4279-8aad-21523ff8a2b2->relates_to->8b632c77-29d4-4853-b8af-e5a3f15ce7ed"
+      ],
+      "rag_chunks": [
+        "The team compared implementation tradeoffs, onboarding pain points, incident history, rollback options, and coordination overhead around The owner for the analytics stack is the Analytics platform team.. User: People also discussed naming c",
+        "checklists, ownership gaps, and release sequencing for analytics thread 4. User: The team compared implementation tradeoffs, onboarding pain points, incident history, rollback options, and coordination overhead around analytics thread 4. Ag",
+        "incident history, rollback options, and coordination overhead around database thread 3. Agent: People also discussed naming consistency, reporting requirements, support load, sprint scheduling, and documentation debt tied to database thread"
+      ]
+    }
+  ],
+  "per_query": {
+    "waggle_graph": [
+      {
+        "query_id": "database_factual",
+        "kind": "factual",
+        "question_tokens": 13,
+        "retrieved_context_tokens": 185,
+        "input_tokens": 198,
+        "hit_at_k": true,
+        "exact_support": true,
+        "latency_seconds": 0.009125165999648743,
+        "retrieved_ids": [
+          "database_new",
+          "database_old",
+          "database_reason",
+          "database_dependency"
+        ],
+        "retrieval_mode": "graph",
+        "node_count": 4,
+        "edge_count": 6
+      },
+      {
+        "query_id": "database_relational",
+        "kind": "relational",
+        "question_tokens": 17,
+        "retrieved_context_tokens": 217,
+        "input_tokens": 234,
+        "hit_at_k": true,
+        "exact_support": true,
+        "latency_seconds": 0.03243220800140989,
+        "retrieved_ids": [
+          "database_old",
+          "database_new",
+          "database_reason",
+          "database_owner",
+          "database_dependency"
+        ],
+        "retrieval_mode": "graph",
+        "node_count": 5,
+        "edge_count": 7
+      },
+      {
+        "query_id": "database_multi_hop",
+        "kind": "multi_hop",
+        "question_tokens": 22,
+        "retrieved_context_tokens": 185,
+        "input_tokens": 207,
+        "hit_at_k": true,
+        "exact_support": false,
+        "latency_seconds": 0.03263945800063084,
+        "retrieved_ids": [
+          "database_dependency",
+          "database_new",
+          "database_old",
+          "database_reason"
+        ],
+        "retrieval_mode": "graph",
+        "node_count": 4,
+        "edge_count": 6
+      },
+      {
+        "query_id": "auth_factual",
+        "kind": "factual",
+        "question_tokens": 12,
+        "retrieved_context_tokens": 167,
+        "input_tokens": 179,
+        "hit_at_k": true,
+        "exact_support": true,
+        "latency_seconds": 0.007216582998808008,
+        "retrieved_ids": [
+          "auth_new",
+          "auth_old",
+          "auth_reason",
+          "auth_dependency"
+        ],
+        "retrieval_mode": "graph",
+        "node_count": 4,
+        "edge_count": 6
+      },
+      {
+        "query_id": "auth_relational",
+        "kind": "relational",
+        "question_tokens": 16,
+        "retrieved_context_tokens": 194,
+        "input_tokens": 210,
+        "hit_at_k": true,
+        "exact_support": true,
+        "latency_seconds": 0.037200834000032046,
+        "retrieved_ids": [
+          "auth_old",
+          "auth_new",
+          "auth_reason",
+          "auth_dependency",
+          "auth_owner"
+        ],
+        "retrieval_mode": "graph",
+        "node_count": 5,
+        "edge_count": 7
+      },
+      {
+        "query_id": "auth_multi_hop",
+        "kind": "multi_hop",
+        "question_tokens": 22,
+        "retrieved_context_tokens": 59,
+        "input_tokens": 81,
+        "hit_at_k": true,
+        "exact_support": false,
+        "latency_seconds": 0.07450229200003378,
+        "retrieved_ids": [
+          "auth_dependency",
+          "auth_new"
+        ],
+        "retrieval_mode": "graph",
+        "node_count": 2,
+        "edge_count": 1
+      },
+      {
+        "query_id": "cache_factual",
+        "kind": "factual",
+        "question_tokens": 12,
+        "retrieved_context_tokens": 172,
+        "input_tokens": 184,
+        "hit_at_k": false,
+        "exact_support": false,
+        "latency_seconds": 0.014672499999505817,
+        "retrieved_ids": [
+          "deploy_new",
+          "deploy_old",
+          "deploy_reason",
+          "deploy_dependency"
+        ],
+        "retrieval_mode": "graph",
+        "node_count": 4,
+        "edge_count": 6
+      },
+      {
+        "query_id": "cache_relational",
+        "kind": "relational",
+        "question_tokens": 16,
+        "retrieved_context_tokens": 201,
+        "input_tokens": 217,
+        "hit_at_k": true,
+        "exact_support": true,
+        "latency_seconds": 0.09020912500091072,
+        "retrieved_ids": [
+          "cache_old",
+          "cache_new",
+          "cache_reason",
+          "cache_owner",
+          "cache_dependency"
+        ],
+        "retrieval_mode": "graph",
+        "node_count": 5,
+        "edge_count": 7
+      },
+      {
+        "query_id": "cache_multi_hop",
+        "kind": "multi_hop",
+        "question_tokens": 22,
+        "retrieved_context_tokens": 62,
+        "input_tokens": 84,
+        "hit_at_k": true,
+        "exact_support": false,
+        "latency_seconds": 0.08621658300035051,
+        "retrieved_ids": [
+          "cache_dependency",
+          "cache_new"
+        ],
+        "retrieval_mode": "graph",
+        "node_count": 2,
+        "edge_count": 1
+      },
+      {
+        "query_id": "search_factual",
+        "kind": "factual",
+        "question_tokens": 13,
+        "retrieved_context_tokens": 194,
+        "input_tokens": 207,
+        "hit_at_k": false,
+        "exact_support": false,
+        "latency_seconds": 0.011821915999462362,
+        "retrieved_ids": [
+          "deploy_new",
+          "analytics_new",
+          "deploy_old",
+          "deploy_reason",
+          "deploy_dependency"
+        ],
+        "retrieval_mode": "graph",
+        "node_count": 5,
+        "edge_count": 6
+      },
+      {
+        "query_id": "search_relational",
+        "kind": "relational",
+        "question_tokens": 16,
+        "retrieved_context_tokens": 205,
+        "input_tokens": 221,
+        "hit_at_k": true,
+        "exact_support": true,
+        "latency_seconds": 0.05479670900058409,
+        "retrieved_ids": [
+          "search_old",
+          "search_reason",
+          "search_new",
+          "search_dependency",
+          "search_owner"
+        ],
+        "retrieval_mode": "graph",
+        "node_count": 5,
+        "edge_count": 7
+      },
+      {
+        "query_id": "search_multi_hop",
+        "kind": "multi_hop",
+        "question_tokens": 22,
+        "retrieved_context_tokens": 63,
+        "input_tokens": 85,
+        "hit_at_k": true,
+        "exact_support": false,
+        "latency_seconds": 0.07601012499981152,
+        "retrieved_ids": [
+          "search_dependency",
+          "search_new"
+        ],
+        "retrieval_mode": "graph",
+        "node_count": 2,
+        "edge_count": 1
+      },
+      {
+        "query_id": "billing_factual",
+        "kind": "factual",
+        "question_tokens": 13,
+        "retrieved_context_tokens": 194,
+        "input_tokens": 207,
+        "hit_at_k": false,
+        "exact_support": false,
+        "latency_seconds": 0.012235958998644492,
+        "retrieved_ids": [
+          "deploy_new",
+          "analytics_new",
+          "deploy_old",
+          "deploy_reason",
+          "deploy_dependency"
+        ],
+        "retrieval_mode": "graph",
+        "node_count": 5,
+        "edge_count": 6
+      },
+      {
+        "query_id": "billing_relational",
+        "kind": "relational",
+        "question_tokens": 16,
+        "retrieved_context_tokens": 212,
+        "input_tokens": 228,
+        "hit_at_k": true,
+        "exact_support": true,
+        "latency_seconds": 0.052465290998952696,
+        "retrieved_ids": [
+          "billing_old",
+          "billing_reason",
+          "billing_new",
+          "billing_dependency",
+          "billing_owner"
+        ],
+        "retrieval_mode": "graph",
+        "node_count": 5,
+        "edge_count": 7
+      },
+      {
+        "query_id": "billing_multi_hop",
+        "kind": "multi_hop",
+        "question_tokens": 22,
+        "retrieved_context_tokens": 64,
+        "input_tokens": 86,
+        "hit_at_k": true,
+        "exact_support": false,
+        "latency_seconds": 0.06990924999990966,
+        "retrieved_ids": [
+          "billing_dependency",
+          "billing_new"
+        ],
+        "retrieval_mode": "graph",
+        "node_count": 2,
+        "edge_count": 1
+      },
+      {
+        "query_id": "support_factual",
+        "kind": "factual",
+        "question_tokens": 13,
+        "retrieved_context_tokens": 198,
+        "input_tokens": 211,
+        "hit_at_k": false,
+        "exact_support": false,
+        "latency_seconds": 0.015204666999125038,
+        "retrieved_ids": [
+          "mobile_new",
+          "notifications_new",
+          "mobile_old",
+          "mobile_reason",
+          "mobile_dependency"
+        ],
+        "retrieval_mode": "graph",
+        "node_count": 5,
+        "edge_count": 6
+      },
+      {
+        "query_id": "support_relational",
+        "kind": "relational",
+        "question_tokens": 16,
+        "retrieved_context_tokens": 207,
+        "input_tokens": 223,
+        "hit_at_k": true,
+        "exact_support": true,
+        "latency_seconds": 0.054470084000058705,
+        "retrieved_ids": [
+          "support_old",
+          "support_reason",
+          "support_new",
+          "support_owner",
+          "support_dependency"
+        ],
+        "retrieval_mode": "graph",
+        "node_count": 5,
+        "edge_count": 7
+      },
+      {
+        "query_id": "support_multi_hop",
+        "kind": "multi_hop",
+        "question_tokens": 22,
+        "retrieved_context_tokens": 62,
+        "input_tokens": 84,
+        "hit_at_k": true,
+        "exact_support": false,
+        "latency_seconds": 0.05615287500040722,
+        "retrieved_ids": [
+          "support_dependency",
+          "support_new"
+        ],
+        "retrieval_mode": "graph",
+        "node_count": 2,
+        "edge_count": 1
+      },
+      {
+        "query_id": "analytics_factual",
+        "kind": "factual",
+        "question_tokens": 13,
+        "retrieved_context_tokens": 230,
+        "input_tokens": 243,
+        "hit_at_k": false,
+        "exact_support": false,
+        "latency_seconds": 0.014976375001424458,
+        "retrieved_ids": [
+          "notifications_new",
+          "deploy_new",
+          "notifications_old",
+          "notifications_reason",
+          "notifications_dependency"
+        ],
+        "retrieval_mode": "graph",
+        "node_count": 5,
+        "edge_count": 6
+      },
+      {
+        "query_id": "analytics_relational",
+        "kind": "relational",
+        "question_tokens": 17,
+        "retrieved_context_tokens": 220,
+        "input_tokens": 237,
+        "hit_at_k": true,
+        "exact_support": true,
+        "latency_seconds": 0.08646283300004143,
+        "retrieved_ids": [
+          "analytics_old",
+          "analytics_reason",
+          "analytics_new",
+          "analytics_dependency",
+          "analytics_owner"
+        ],
+        "retrieval_mode": "graph",
+        "node_count": 5,
+        "edge_count": 7
+      },
+      {
+        "query_id": "analytics_multi_hop",
+        "kind": "multi_hop",
+        "question_tokens": 21,
+        "retrieved_context_tokens": 63,
+        "input_tokens": 84,
+        "hit_at_k": true,
+        "exact_support": false,
+        "latency_seconds": 0.04529716599972744,
+        "retrieved_ids": [
+          "analytics_dependency",
+          "analytics_new"
+        ],
+        "retrieval_mode": "graph",
+        "node_count": 2,
+        "edge_count": 1
+      },
+      {
+        "query_id": "deploy_factual",
+        "kind": "factual",
+        "question_tokens": 13,
+        "retrieved_context_tokens": 172,
+        "input_tokens": 185,
+        "hit_at_k": true,
+        "exact_support": true,
+        "latency_seconds": 0.012766207999447943,
+        "retrieved_ids": [
+          "deploy_new",
+          "deploy_old",
+          "deploy_reason",
+          "deploy_dependency"
+        ],
+        "retrieval_mode": "graph",
+        "node_count": 4,
+        "edge_count": 6
+      },
+      {
+        "query_id": "deploy_relational",
+        "kind": "relational",
+        "question_tokens": 16,
+        "retrieved_context_tokens": 202,
+        "input_tokens": 218,
+        "hit_at_k": true,
+        "exact_support": true,
+        "latency_seconds": 0.05727379200106952,
+        "retrieved_ids": [
+          "deploy_old",
+          "deploy_reason",
+          "deploy_new",
+          "deploy_dependency",
+          "deploy_owner"
+        ],
+        "retrieval_mode": "graph",
+        "node_count": 5,
+        "edge_count": 7
+      },
+      {
+        "query_id": "deploy_multi_hop",
+        "kind": "multi_hop",
+        "question_tokens": 20,
+        "retrieved_context_tokens": 60,
+        "input_tokens": 80,
+        "hit_at_k": true,
+        "exact_support": false,
+        "latency_seconds": 0.056397457999992184,
+        "retrieved_ids": [
+          "deploy_dependency",
+          "deploy_new"
+        ],
+        "retrieval_mode": "graph",
+        "node_count": 2,
+        "edge_count": 1
+      },
+      {
+        "query_id": "notifications_factual",
+        "kind": "factual",
+        "question_tokens": 14,
+        "retrieved_context_tokens": 208,
+        "input_tokens": 222,
+        "hit_at_k": true,
+        "exact_support": true,
+        "latency_seconds": 0.015730041999631794,
+        "retrieved_ids": [
+          "notifications_new",
+          "notifications_old",
+          "notifications_reason",
+          "notifications_dependency"
+        ],
+        "retrieval_mode": "graph",
+        "node_count": 4,
+        "edge_count": 6
+      },
+      {
+        "query_id": "notifications_relational",
+        "kind": "relational",
+        "question_tokens": 18,
+        "retrieved_context_tokens": 247,
+        "input_tokens": 265,
+        "hit_at_k": true,
+        "exact_support": true,
+        "latency_seconds": 0.06701720800083422,
+        "retrieved_ids": [
+          "notifications_old",
+          "notifications_reason",
+          "notifications_new",
+          "notifications_dependency",
+          "notifications_owner"
+        ],
+        "retrieval_mode": "graph",
+        "node_count": 5,
+        "edge_count": 7
+      },
+      {
+        "query_id": "notifications_multi_hop",
+        "kind": "multi_hop",
+        "question_tokens": 22,
+        "retrieved_context_tokens": 70,
+        "input_tokens": 92,
+        "hit_at_k": true,
+        "exact_support": false,
+        "latency_seconds": 0.05783062500086089,
+        "retrieved_ids": [
+          "notifications_dependency",
+          "notifications_new"
+        ],
+        "retrieval_mode": "graph",
+        "node_count": 2,
+        "edge_count": 1
+      },
+      {
+        "query_id": "mobile_factual",
+        "kind": "factual",
+        "question_tokens": 13,
+        "retrieved_context_tokens": 172,
+        "input_tokens": 185,
+        "hit_at_k": true,
+        "exact_support": true,
+        "latency_seconds": 0.01206866699976672,
+        "retrieved_ids": [
+          "mobile_new",
+          "mobile_old",
+          "mobile_reason",
+          "mobile_dependency"
+        ],
+        "retrieval_mode": "graph",
+        "node_count": 4,
+        "edge_count": 6
+      },
+      {
+        "query_id": "mobile_relational",
+        "kind": "relational",
+        "question_tokens": 16,
+        "retrieved_context_tokens": 203,
+        "input_tokens": 219,
+        "hit_at_k": true,
+        "exact_support": true,
+        "latency_seconds": 0.06543558399971516,
+        "retrieved_ids": [
+          "mobile_old",
+          "mobile_reason",
+          "mobile_new",
+          "mobile_dependency",
+          "mobile_owner"
+        ],
+        "retrieval_mode": "graph",
+        "node_count": 5,
+        "edge_count": 7
+      },
+      {
+        "query_id": "mobile_multi_hop",
+        "kind": "multi_hop",
+        "question_tokens": 22,
+        "retrieved_context_tokens": 61,
+        "input_tokens": 83,
+        "hit_at_k": true,
+        "exact_support": false,
+        "latency_seconds": 0.05522183299945027,
+        "retrieved_ids": [
+          "mobile_dependency",
+          "mobile_new"
+        ],
+        "retrieval_mode": "graph",
+        "node_count": 2,
+        "edge_count": 1
+      }
+    ],
+    "vanilla_rag": [
+      {
+        "query_id": "database_factual",
+        "kind": "factual",
+        "question_tokens": 13,
+        "retrieved_context_tokens": 1245,
+        "input_tokens": 1258,
+        "hit_at_k": true,
+        "exact_support": true,
+        "latency_seconds": 3.9622293329994136,
+        "retrieved_ids": [
+          "database_new",
+          "database_reason",
+          "database_new",
+          "database_old",
+          "database_old",
+          "database_owner"
+        ],
+        "retrieval_mode": "topk_vector_chunks",
+        "node_count": 0,
+        "edge_count": 0
+      },
+      {
+        "query_id": "database_relational",
+        "kind": "relational",
+        "question_tokens": 17,
+        "retrieved_context_tokens": 1106,
+        "input_tokens": 1123,
+        "hit_at_k": false,
+        "exact_support": false,
+        "latency_seconds": 3.870566207999218,
+        "retrieved_ids": [
+          "database_old",
+          "database_old",
+          "analytics_old",
+          "database_owner"
+        ],
+        "retrieval_mode": "topk_vector_chunks",
+        "node_count": 0,
+        "edge_count": 0
+      },
+      {
+        "query_id": "database_multi_hop",
+        "kind": "multi_hop",
+        "question_tokens": 22,
+        "retrieved_context_tokens": 1390,
+        "input_tokens": 1412,
+        "hit_at_k": true,
+        "exact_support": false,
+        "latency_seconds": 3.973300540999844,
+        "retrieved_ids": [
+          "analytics_owner",
+          "analytics_owner",
+          "database_dependency",
+          "analytics_new"
+        ],
+        "retrieval_mode": "topk_vector_chunks",
+        "node_count": 0,
+        "edge_count": 0
+      },
+      {
+        "query_id": "auth_factual",
+        "kind": "factual",
+        "question_tokens": 12,
+        "retrieved_context_tokens": 1544,
+        "input_tokens": 1556,
+        "hit_at_k": true,
+        "exact_support": true,
+        "latency_seconds": 4.083890875001089,
+        "retrieved_ids": [
+          "auth_new",
+          "auth_reason",
+          "auth_owner"
+        ],
+        "retrieval_mode": "topk_vector_chunks",
+        "node_count": 0,
+        "edge_count": 0
+      },
+      {
+        "query_id": "auth_relational",
+        "kind": "relational",
+        "question_tokens": 16,
+        "retrieved_context_tokens": 1488,
+        "input_tokens": 1504,
+        "hit_at_k": true,
+        "exact_support": true,
+        "latency_seconds": 7.938310708999779,
+        "retrieved_ids": [
+          "auth_old",
+          "auth_new",
+          "auth_reason",
+          "auth_owner"
+        ],
+        "retrieval_mode": "topk_vector_chunks",
+        "node_count": 0,
+        "edge_count": 0
+      },
+      {
+        "query_id": "auth_multi_hop",
+        "kind": "multi_hop",
+        "question_tokens": 22,
+        "retrieved_context_tokens": 1053,
+        "input_tokens": 1075,
+        "hit_at_k": true,
+        "exact_support": false,
+        "latency_seconds": 8.664524541998617,
+        "retrieved_ids": [
+          "auth_dependency",
+          "mobile_dependency",
+          "mobile_dependency",
+          "mobile_owner",
+          "mobile_old"
+        ],
+        "retrieval_mode": "topk_vector_chunks",
+        "node_count": 0,
+        "edge_count": 0
+      },
+      {
+        "query_id": "cache_factual",
+        "kind": "factual",
+        "question_tokens": 12,
+        "retrieved_context_tokens": 1587,
+        "input_tokens": 1599,
+        "hit_at_k": true,
+        "exact_support": true,
+        "latency_seconds": 8.438009333000082,
+        "retrieved_ids": [
+          "cache_new",
+          "cache_owner"
+        ],
+        "retrieval_mode": "topk_vector_chunks",
+        "node_count": 0,
+        "edge_count": 0
+      },
+      {
+        "query_id": "cache_relational",
+        "kind": "relational",
+        "question_tokens": 16,
+        "retrieved_context_tokens": 1583,
+        "input_tokens": 1599,
+        "hit_at_k": true,
+        "exact_support": false,
+        "latency_seconds": 17.780996417001006,
+        "retrieved_ids": [
+          "cache_owner",
+          "cache_old",
+          "cache_new"
+        ],
+        "retrieval_mode": "topk_vector_chunks",
+        "node_count": 0,
+        "edge_count": 0
+      },
+      {
+        "query_id": "cache_multi_hop",
+        "kind": "multi_hop",
+        "question_tokens": 22,
+        "retrieved_context_tokens": 811,
+        "input_tokens": 833,
+        "hit_at_k": true,
+        "exact_support": false,
+        "latency_seconds": 7.809551250000368,
+        "retrieved_ids": [
+          "cache_dependency",
+          "cache_dependency",
+          "cache_owner",
+          "cache_owner",
+          "search_owner"
+        ],
+        "retrieval_mode": "topk_vector_chunks",
+        "node_count": 0,
+        "edge_count": 0
+      },
+      {
+        "query_id": "search_factual",
+        "kind": "factual",
+        "question_tokens": 13,
+        "retrieved_context_tokens": 1256,
+        "input_tokens": 1269,
+        "hit_at_k": true,
+        "exact_support": true,
+        "latency_seconds": 8.005830042000525,
+        "retrieved_ids": [
+          "search_dependency",
+          "search_new",
+          "search_dependency",
+          "search_new",
+          "search_reason"
+        ],
+        "retrieval_mode": "topk_vector_chunks",
+        "node_count": 0,
+        "edge_count": 0
+      },
+      {
+        "query_id": "search_relational",
+        "kind": "relational",
+        "question_tokens": 16,
+        "retrieved_context_tokens": 1609,
+        "input_tokens": 1625,
+        "hit_at_k": true,
+        "exact_support": false,
+        "latency_seconds": 9.384053417001269,
+        "retrieved_ids": [
+          "search_new"
+        ],
+        "retrieval_mode": "topk_vector_chunks",
+        "node_count": 0,
+        "edge_count": 0
+      },
+      {
+        "query_id": "search_multi_hop",
+        "kind": "multi_hop",
+        "question_tokens": 22,
+        "retrieved_context_tokens": 1087,
+        "input_tokens": 1109,
+        "hit_at_k": true,
+        "exact_support": false,
+        "latency_seconds": 10.320150499999727,
+        "retrieved_ids": [
+          "search_dependency",
+          "search_dependency",
+          "search_owner",
+          "search_owner"
+        ],
+        "retrieval_mode": "topk_vector_chunks",
+        "node_count": 0,
+        "edge_count": 0
+      },
+      {
+        "query_id": "billing_factual",
+        "kind": "factual",
+        "question_tokens": 13,
+        "retrieved_context_tokens": 1246,
+        "input_tokens": 1259,
+        "hit_at_k": true,
+        "exact_support": true,
+        "latency_seconds": 6.757826084000044,
+        "retrieved_ids": [
+          "billing_old",
+          "billing_new",
+          "billing_new",
+          "billing_reason"
+        ],
+        "retrieval_mode": "topk_vector_chunks",
+        "node_count": 0,
+        "edge_count": 0
+      },
+      {
+        "query_id": "billing_relational",
+        "kind": "relational",
+        "question_tokens": 16,
+        "retrieved_context_tokens": 1345,
+        "input_tokens": 1361,
+        "hit_at_k": false,
+        "exact_support": false,
+        "latency_seconds": 8.99098341699937,
+        "retrieved_ids": [
+          "billing_old"
+        ],
+        "retrieval_mode": "topk_vector_chunks",
+        "node_count": 0,
+        "edge_count": 0
+      },
+      {
+        "query_id": "billing_multi_hop",
+        "kind": "multi_hop",
+        "question_tokens": 22,
+        "retrieved_context_tokens": 1072,
+        "input_tokens": 1094,
+        "hit_at_k": true,
+        "exact_support": false,
+        "latency_seconds": 8.153869166999357,
+        "retrieved_ids": [
+          "billing_dependency",
+          "notifications_old",
+          "billing_owner",
+          "support_dependency"
+        ],
+        "retrieval_mode": "topk_vector_chunks",
+        "node_count": 0,
+        "edge_count": 0
+      },
+      {
+        "query_id": "support_factual",
+        "kind": "factual",
+        "question_tokens": 13,
+        "retrieved_context_tokens": 1353,
+        "input_tokens": 1366,
+        "hit_at_k": true,
+        "exact_support": true,
+        "latency_seconds": 8.26079670800027,
+        "retrieved_ids": [
+          "support_new",
+          "support_owner",
+          "support_dependency",
+          "support_old"
+        ],
+        "retrieval_mode": "topk_vector_chunks",
+        "node_count": 0,
+        "edge_count": 0
+      },
+      {
+        "query_id": "support_relational",
+        "kind": "relational",
+        "question_tokens": 16,
+        "retrieved_context_tokens": 1620,
+        "input_tokens": 1636,
+        "hit_at_k": true,
+        "exact_support": false,
+        "latency_seconds": 8.12476745800086,
+        "retrieved_ids": [
+          "support_old",
+          "support_owner",
+          "support_new"
+        ],
+        "retrieval_mode": "topk_vector_chunks",
+        "node_count": 0,
+        "edge_count": 0
+      },
+      {
+        "query_id": "support_multi_hop",
+        "kind": "multi_hop",
+        "question_tokens": 22,
+        "retrieved_context_tokens": 1355,
+        "input_tokens": 1377,
+        "hit_at_k": true,
+        "exact_support": true,
+        "latency_seconds": 11.174935125000047,
+        "retrieved_ids": [
+          "support_dependency",
+          "support_dependency",
+          "support_new",
+          "support_owner"
+        ],
+        "retrieval_mode": "topk_vector_chunks",
+        "node_count": 0,
+        "edge_count": 0
+      },
+      {
+        "query_id": "analytics_factual",
+        "kind": "factual",
+        "question_tokens": 13,
+        "retrieved_context_tokens": 1628,
+        "input_tokens": 1641,
+        "hit_at_k": true,
+        "exact_support": true,
+        "latency_seconds": 10.749634540999978,
+        "retrieved_ids": [
+          "analytics_new"
+        ],
+        "retrieval_mode": "topk_vector_chunks",
+        "node_count": 0,
+        "edge_count": 0
+      },
+      {
+        "query_id": "analytics_relational",
+        "kind": "relational",
+        "question_tokens": 17,
+        "retrieved_context_tokens": 1167,
+        "input_tokens": 1184,
+        "hit_at_k": false,
+        "exact_support": false,
+        "latency_seconds": 7.429254083999695,
+        "retrieved_ids": [
+          "analytics_old",
+          "analytics_owner"
+        ],
+        "retrieval_mode": "topk_vector_chunks",
+        "node_count": 0,
+        "edge_count": 0
+      },
+      {
+        "query_id": "analytics_multi_hop",
+        "kind": "multi_hop",
+        "question_tokens": 21,
+        "retrieved_context_tokens": 894,
+        "input_tokens": 915,
+        "hit_at_k": true,
+        "exact_support": false,
+        "latency_seconds": 7.098539874999915,
+        "retrieved_ids": [
+          "analytics_owner",
+          "analytics_dependency",
+          "analytics_owner",
+          "analytics_dependency",
+          "billing_owner"
+        ],
+        "retrieval_mode": "topk_vector_chunks",
+        "node_count": 0,
+        "edge_count": 0
+      },
+      {
+        "query_id": "deploy_factual",
+        "kind": "factual",
+        "question_tokens": 13,
+        "retrieved_context_tokens": 1346,
+        "input_tokens": 1359,
+        "hit_at_k": true,
+        "exact_support": true,
+        "latency_seconds": 7.092877000000954,
+        "retrieved_ids": [
+          "deploy_new",
+          "deploy_dependency",
+          "deploy_old"
+        ],
+        "retrieval_mode": "topk_vector_chunks",
+        "node_count": 0,
+        "edge_count": 0
+      },
+      {
+        "query_id": "deploy_relational",
+        "kind": "relational",
+        "question_tokens": 16,
+        "retrieved_context_tokens": 1605,
+        "input_tokens": 1621,
+        "hit_at_k": false,
+        "exact_support": false,
+        "latency_seconds": 7.357199625001158,
+        "retrieved_ids": [
+          "deploy_owner"
+        ],
+        "retrieval_mode": "topk_vector_chunks",
+        "node_count": 0,
+        "edge_count": 0
+      },
+      {
+        "query_id": "deploy_multi_hop",
+        "kind": "multi_hop",
+        "question_tokens": 20,
+        "retrieved_context_tokens": 1343,
+        "input_tokens": 1363,
+        "hit_at_k": true,
+        "exact_support": false,
+        "latency_seconds": 6.86876220799968,
+        "retrieved_ids": [
+          "deploy_dependency",
+          "deploy_dependency",
+          "deploy_owner",
+          "support_new"
+        ],
+        "retrieval_mode": "topk_vector_chunks",
+        "node_count": 0,
+        "edge_count": 0
+      },
+      {
+        "query_id": "notifications_factual",
+        "kind": "factual",
+        "question_tokens": 14,
+        "retrieved_context_tokens": 1611,
+        "input_tokens": 1625,
+        "hit_at_k": true,
+        "exact_support": true,
+        "latency_seconds": 7.411751542000275,
+        "retrieved_ids": [
+          "notifications_new",
+          "notifications_owner",
+          "notifications_old"
+        ],
+        "retrieval_mode": "topk_vector_chunks",
+        "node_count": 0,
+        "edge_count": 0
+      },
+      {
+        "query_id": "notifications_relational",
+        "kind": "relational",
+        "question_tokens": 18,
+        "retrieved_context_tokens": 895,
+        "input_tokens": 913,
+        "hit_at_k": true,
+        "exact_support": false,
+        "latency_seconds": 6.749654416998965,
+        "retrieved_ids": [
+          "notifications_old",
+          "notifications_owner",
+          "notifications_reason"
+        ],
+        "retrieval_mode": "topk_vector_chunks",
+        "node_count": 0,
+        "edge_count": 0
+      },
+      {
+        "query_id": "notifications_multi_hop",
+        "kind": "multi_hop",
+        "question_tokens": 22,
+        "retrieved_context_tokens": 1182,
+        "input_tokens": 1204,
+        "hit_at_k": true,
+        "exact_support": false,
+        "latency_seconds": 7.020316500000263,
+        "retrieved_ids": [
+          "notifications_dependency",
+          "notifications_dependency",
+          "notifications_owner",
+          "notifications_owner"
+        ],
+        "retrieval_mode": "topk_vector_chunks",
+        "node_count": 0,
+        "edge_count": 0
+      },
+      {
+        "query_id": "mobile_factual",
+        "kind": "factual",
+        "question_tokens": 13,
+        "retrieved_context_tokens": 1214,
+        "input_tokens": 1227,
+        "hit_at_k": true,
+        "exact_support": true,
+        "latency_seconds": 7.467739416999393,
+        "retrieved_ids": [
+          "mobile_new",
+          "mobile_new",
+          "mobile_reason",
+          "mobile_old",
+          "mobile_old",
+          "mobile_owner"
+        ],
+        "retrieval_mode": "topk_vector_chunks",
+        "node_count": 0,
+        "edge_count": 0
+      },
+      {
+        "query_id": "mobile_relational",
+        "kind": "relational",
+        "question_tokens": 16,
+        "retrieved_context_tokens": 1323,
+        "input_tokens": 1339,
+        "hit_at_k": false,
+        "exact_support": false,
+        "latency_seconds": 7.175894750000225,
+        "retrieved_ids": [
+          "mobile_old",
+          "mobile_old",
+          "mobile_owner"
+        ],
+        "retrieval_mode": "topk_vector_chunks",
+        "node_count": 0,
+        "edge_count": 0
+      },
+      {
+        "query_id": "mobile_multi_hop",
+        "kind": "multi_hop",
+        "question_tokens": 22,
+        "retrieved_context_tokens": 800,
+        "input_tokens": 822,
+        "hit_at_k": true,
+        "exact_support": false,
+        "latency_seconds": 6.860713457999736,
+        "retrieved_ids": [
+          "mobile_dependency",
+          "mobile_dependency",
+          "mobile_old",
+          "mobile_owner",
+          "mobile_old"
+        ],
+        "retrieval_mode": "topk_vector_chunks",
+        "node_count": 0,
+        "edge_count": 0
+      }
+    ]
+  },
+  "notes": [
+    "Vanilla RAG requested `text-embedding-3-small` but ran with local fallback `all-MiniLM-L6-v2` because OpenAI embeddings were unavailable: OPENAI_API_KEY is required for OpenAI embedding benchmarks."
+  ]
+}

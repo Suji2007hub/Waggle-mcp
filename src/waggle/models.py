@@ -54,6 +54,9 @@ class Node(BaseModel):
     node_type: NodeType
     tags: list[str] = Field(default_factory=list)
     source_prompt: str = ""
+    embedding_model_id: str = ""
+    embedding_dim: int = 0
+    source_turn_pair_id: str = ""
     metadata: dict[str, Any] = Field(default_factory=dict)
     evidence_records: list["EvidenceRecord"] = Field(default_factory=list)
     valid_from: datetime | None = None
@@ -83,7 +86,7 @@ class Node(BaseModel):
             return ""
         return str(value).strip()
 
-    @field_validator("agent_id", "project", "session_id", mode="before")
+    @field_validator("agent_id", "project", "session_id", "embedding_model_id", "source_turn_pair_id", mode="before")
     @classmethod
     def _normalize_scope_text(cls, value: Any) -> str:
         if value is None:
@@ -240,6 +243,7 @@ class SubgraphResult(BaseModel):
     edges: list[Edge] = Field(default_factory=list)
     replay_hits: list["ReplayHit"] = Field(default_factory=list)
     fusion_hits: list["FusionHit"] = Field(default_factory=list)
+    hybrid_hits: list["HybridHit"] = Field(default_factory=list)
     retrieval_mode: str = "graph"
     query: str = ""
     total_nodes_in_graph: int = 0
@@ -268,6 +272,20 @@ class BackupResult(BaseModel):
     edge_count: int = 0
 
 
+class AbhiExportResult(BaseModel):
+    output_path: str
+    tenant_id: str = ""
+    schema_version: int = 1
+    abhi_spec_version: str = "1.1"
+    node_count: int = 0
+    edge_count: int = 0
+    content_hash: str = ""
+    embedding_count: int = 0
+    encrypted: bool = False
+    encryption_algorithm: str = ""
+    executed_actions: list[str] = Field(default_factory=list)
+
+
 class ImportResult(BaseModel):
     input_path: str
     tenant_id: str = ""
@@ -276,6 +294,143 @@ class ImportResult(BaseModel):
     nodes_updated: int = 0
     edges_created: int = 0
     edges_updated: int = 0
+
+
+class AbhiImportResult(BaseModel):
+    input_path: str
+    tenant_id: str = ""
+    schema_version: int = 1
+    abhi_spec_version: str = "1.1"
+    nodes_created: int = 0
+    nodes_updated: int = 0
+    edges_created: int = 0
+    edges_updated: int = 0
+    hash_verified: bool = False
+    embedding_count: int = 0
+    encrypted: bool = False
+    encryption_algorithm: str = ""
+    executed_actions: list[str] = Field(default_factory=list)
+
+
+class AbhiValidationResult(BaseModel):
+    input_path: str
+    valid: bool = False
+    errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    node_count: int = 0
+    edge_count: int = 0
+    content_hash: str = ""
+    abhi_spec_version: str = "1.1"
+    embedding_count: int = 0
+    encrypted: bool = False
+    encryption_algorithm: str = ""
+
+
+class AbhiInspectResult(BaseModel):
+    input_path: str
+    tenant_id: str = ""
+    schema_version: int = 1
+    abhi_spec_version: str = "1.1"
+    node_count: int = 0
+    edge_count: int = 0
+    node_types: list[str] = Field(default_factory=list)
+    edge_types: list[str] = Field(default_factory=list)
+    constraint_count: int = 0
+    version_count: int = 0
+    query_count: int = 0
+    event_count: int = 0
+    chunk_count: int = 0
+    load_strategy: str = "full"
+    preload_chunks: list[str] = Field(default_factory=list)
+    content_hash: str = ""
+    embedding_count: int = 0
+    encrypted: bool = False
+    encryption_algorithm: str = ""
+
+
+class AbhiDiffResult(BaseModel):
+    input_path_a: str
+    input_path_b: str
+    abhi_spec_version_a: str = "1.1"
+    abhi_spec_version_b: str = "1.1"
+    nodes_added: list[str] = Field(default_factory=list)
+    nodes_removed: list[str] = Field(default_factory=list)
+    nodes_updated: list[str] = Field(default_factory=list)
+    edges_added: list[str] = Field(default_factory=list)
+    edges_removed: list[str] = Field(default_factory=list)
+    edges_updated: list[str] = Field(default_factory=list)
+    semantic_changes: list[str] = Field(default_factory=list)
+
+
+class AbhiMergeResult(BaseModel):
+    base_input_path: str
+    left_input_path: str
+    right_input_path: str
+    output_path: str
+    merge_strategy: str = "prefer_right"
+    abhi_spec_version: str = "1.1"
+    nodes_merged: int = 0
+    edges_merged: int = 0
+    conflicts: list[str] = Field(default_factory=list)
+    content_hash: str = ""
+    embedding_count: int = 0
+    encrypted: bool = False
+    encryption_algorithm: str = ""
+    executed_actions: list[str] = Field(default_factory=list)
+
+
+class AbhiQueryResult(BaseModel):
+    input_path: str
+    query_id: str = ""
+    name: str = ""
+    query: str = ""
+    summary: str = ""
+    node_count: int = 0
+    edge_count: int = 0
+    node_ids: list[str] = Field(default_factory=list)
+    edge_ids: list[str] = Field(default_factory=list)
+    chunk_ids: list[str] = Field(default_factory=list)
+    scanned_chunk_count: int = 0
+    executed_actions: list[str] = Field(default_factory=list)
+
+
+class AbhiChunkLoadResult(BaseModel):
+    input_path: str
+    chunk_ids: list[str] = Field(default_factory=list)
+    load_strategy: str = "full"
+    node_count: int = 0
+    edge_count: int = 0
+    available_chunk_count: int = 0
+    query: str = ""
+    node_ids: list[str] = Field(default_factory=list)
+    edge_ids: list[str] = Field(default_factory=list)
+
+
+class DrivePushResult(BaseModel):
+    local_path: str
+    remote_file_id: str = ""
+    remote_name: str = ""
+    folder_id: str = ""
+    web_view_link: str = ""
+    encrypted: bool = False
+
+
+class DrivePullResult(BaseModel):
+    remote_file_id: str = ""
+    remote_name: str = ""
+    downloaded_path: str = ""
+    merged_output_path: str = ""
+    merge_strategy: str = "last_write_wins"
+    nodes_created: int = 0
+    nodes_updated: int = 0
+    edges_created: int = 0
+    edges_updated: int = 0
+
+
+class DriveShareResult(BaseModel):
+    remote_file_id: str = ""
+    permission_id: str = ""
+    web_view_link: str = ""
 
 
 class ObservationResult(BaseModel):
@@ -448,9 +603,13 @@ class TranscriptRecord(BaseModel):
     turn_index: int = 0
     role: str = ""
     transcript_text: str
+    embedding_model_id: str = ""
+    embedding_dim: int = 0
+    content_hash: str = ""
+    turn_pair_id: str = ""
     metadata: dict[str, Any] = Field(default_factory=dict)
 
-    @field_validator("agent_id", "project", "session_id", "role", mode="before")
+    @field_validator("agent_id", "project", "session_id", "role", "embedding_model_id", "content_hash", "turn_pair_id", mode="before")
     @classmethod
     def _normalize_scope_fields(cls, value: Any) -> str:
         if value is None:
@@ -472,6 +631,7 @@ class ReplayHit(BaseModel):
     score: float = 0.0
     session_id: str = ""
     turn_index: int = 0
+    turn_pair_id: str = ""
     role: str = ""
     transcript_text: str = ""
     transcript_snippet: str = ""
@@ -491,6 +651,17 @@ class FusionHit(BaseModel):
     session_id: str | None = None
     transcript_snippet: str | None = None
     turn_index: int | None = None
+
+
+class HybridHit(BaseModel):
+    content: str
+    score: float = 0.0
+    source: str = "transcript"
+    turn_pair_id: str = ""
+    node_ids: list[str] = Field(default_factory=list)
+    reasoning_from_reranker: str = ""
+    observed_at: datetime | None = None
+    layer_scores: dict[str, float] = Field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------

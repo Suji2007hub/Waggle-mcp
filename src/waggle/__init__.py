@@ -1,102 +1,64 @@
 """Persistent graph memory MCP server."""
 
+from importlib import import_module
 from importlib.metadata import PackageNotFoundError, version
 
-from waggle.graph import MemoryGraph
-from waggle.models import (
-    ApiKeyCreateResult,
-    ApiKeyRecord,
-    BackupResult,
-    ConflictEntry,
-    ConflictListResult,
-    ConflictRecord,
-    ContextBundle,
-    ContextBundleExportResult,
-    ContextRenderHints,
-    ContextScopeResult,
-    ContextTimelineItem,
-    Edge,
-    EvidenceRecord,
-    GraphDiffResult,
-    GraphStats,
-    ImportResult,
-    Node,
-    NodeHistoryResult,
-    NodeStoreResult,
-    NodeType,
-    ObservationResult,
-    PrimeContextResult,
-    RelationType,
-    SubgraphResult,
-    TenantRecord,
-    TimelineResult,
-    TopicCluster,
-    TopicResult,
-)
-from waggle.orchestrator import (
-    AsyncMemoryOrchestrator,
-    ConversationTurn,
-    IngestPlan,
-    MemoryPolicy,
-    MemoryScope,
-    RetrievePlan,
-    RetrieveRequest,
-)
-from waggle.chat_runtime import (
-    ModelAdapter,
-    OrchestratedChatRuntime,
-    RuntimeTurnResult,
-)
+_LAZY_EXPORTS = {
+    "MemoryGraph": ("waggle.graph", "MemoryGraph"),
+    "Neo4jMemoryGraph": ("waggle.neo4j_graph", "Neo4jMemoryGraph"),
+    "Edge": ("waggle.models", "Edge"),
+    "ApiKeyCreateResult": ("waggle.models", "ApiKeyCreateResult"),
+    "ApiKeyRecord": ("waggle.models", "ApiKeyRecord"),
+    "BackupResult": ("waggle.models", "BackupResult"),
+    "ConflictEntry": ("waggle.models", "ConflictEntry"),
+    "ConflictListResult": ("waggle.models", "ConflictListResult"),
+    "ConflictRecord": ("waggle.models", "ConflictRecord"),
+    "ContextBundle": ("waggle.models", "ContextBundle"),
+    "ContextBundleExportResult": ("waggle.models", "ContextBundleExportResult"),
+    "ContextRenderHints": ("waggle.models", "ContextRenderHints"),
+    "ContextScopeResult": ("waggle.models", "ContextScopeResult"),
+    "ContextTimelineItem": ("waggle.models", "ContextTimelineItem"),
+    "GraphStats": ("waggle.models", "GraphStats"),
+    "GraphDiffResult": ("waggle.models", "GraphDiffResult"),
+    "EvidenceRecord": ("waggle.models", "EvidenceRecord"),
+    "ImportResult": ("waggle.models", "ImportResult"),
+    "Node": ("waggle.models", "Node"),
+    "NodeHistoryResult": ("waggle.models", "NodeHistoryResult"),
+    "NodeStoreResult": ("waggle.models", "NodeStoreResult"),
+    "NodeType": ("waggle.models", "NodeType"),
+    "ObservationResult": ("waggle.models", "ObservationResult"),
+    "PrimeContextResult": ("waggle.models", "PrimeContextResult"),
+    "RelationType": ("waggle.models", "RelationType"),
+    "SubgraphResult": ("waggle.models", "SubgraphResult"),
+    "TenantRecord": ("waggle.models", "TenantRecord"),
+    "TimelineResult": ("waggle.models", "TimelineResult"),
+    "TopicCluster": ("waggle.models", "TopicCluster"),
+    "TopicResult": ("waggle.models", "TopicResult"),
+    "AsyncMemoryOrchestrator": ("waggle.orchestrator", "AsyncMemoryOrchestrator"),
+    "ConversationTurn": ("waggle.orchestrator", "ConversationTurn"),
+    "IngestPlan": ("waggle.orchestrator", "IngestPlan"),
+    "MemoryPolicy": ("waggle.orchestrator", "MemoryPolicy"),
+    "MemoryScope": ("waggle.orchestrator", "MemoryScope"),
+    "RetrievePlan": ("waggle.orchestrator", "RetrievePlan"),
+    "RetrieveRequest": ("waggle.orchestrator", "RetrieveRequest"),
+    "ModelAdapter": ("waggle.chat_runtime", "ModelAdapter"),
+    "OrchestratedChatRuntime": ("waggle.chat_runtime", "OrchestratedChatRuntime"),
+    "RuntimeTurnResult": ("waggle.chat_runtime", "RuntimeTurnResult"),
+}
 
-try:  # pragma: no cover
-    from waggle.neo4j_graph import Neo4jMemoryGraph
-except Exception:  # pragma: no cover
-    Neo4jMemoryGraph = None
+__all__ = sorted(_LAZY_EXPORTS)
 
-__all__ = [
-    "Edge",
-    "ApiKeyCreateResult",
-    "ApiKeyRecord",
-    "BackupResult",
-    "ConflictEntry",
-    "ConflictListResult",
-    "ConflictRecord",
-    "ContextBundle",
-    "ContextBundleExportResult",
-    "ContextRenderHints",
-    "ContextScopeResult",
-    "ContextTimelineItem",
-    "GraphStats",
-    "GraphDiffResult",
-    "EvidenceRecord",
-    "ImportResult",
-    "MemoryGraph",
-    "Neo4jMemoryGraph",
-    "Node",
-    "NodeHistoryResult",
-    "NodeStoreResult",
-    "NodeType",
-    "ObservationResult",
-    "PrimeContextResult",
-    "RelationType",
-    "SubgraphResult",
-    "TenantRecord",
-    "TimelineResult",
-    "TopicCluster",
-    "TopicResult",
-    "AsyncMemoryOrchestrator",
-    "ConversationTurn",
-    "IngestPlan",
-    "MemoryPolicy",
-    "MemoryScope",
-    "RetrievePlan",
-    "RetrieveRequest",
-    "ModelAdapter",
-    "OrchestratedChatRuntime",
-    "RuntimeTurnResult",
-]
+
+def __getattr__(name: str):
+    module_name, attr_name = _LAZY_EXPORTS[name]
+    module = import_module(module_name)
+    value = getattr(module, attr_name)
+    globals()[name] = value
+    return value
+
 
 try:  # pragma: no cover
     __version__ = version("waggle-mcp")
 except PackageNotFoundError:  # pragma: no cover
     __version__ = "0.1.11"
+

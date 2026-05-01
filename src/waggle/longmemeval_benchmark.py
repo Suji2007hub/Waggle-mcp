@@ -24,6 +24,25 @@ class LongMemEvalCaseResult:
     retrieved_session_ids: list[str]
     hit_at_5: bool
     exact_at_5: bool
+    exact_at_10: bool
+    exact_at_20: bool
+
+
+@dataclass(frozen=True)
+class LongMemEvalCardinalityMetrics:
+    count: int
+    recall_at_5: float
+    exact_at_5: float
+    exact_at_10: float
+    exact_at_20: float
+
+
+@dataclass(frozen=True)
+class LongMemEvalDivergenceExample:
+    case_id: str
+    gold_set: list[str]
+    retrieved_top5: list[str]
+    missing: list[str]
 
 
 @dataclass(frozen=True)
@@ -63,6 +82,8 @@ class LongMemEvalReport:
     cache_key: str
     r_at_5: float
     exact_at_5: float
+    by_gold_cardinality: dict[str, LongMemEvalCardinalityMetrics]
+    divergence_examples: list[LongMemEvalDivergenceExample]
     per_case: list[LongMemEvalCaseResult]
     split_type: str = "full"
     split_seed: int | None = None
@@ -82,6 +103,22 @@ class LongMemEvalReport:
             "cache_key": self.cache_key,
             "r_at_5": self.r_at_5,
             "exact_at_5": self.exact_at_5,
+            "summary": {
+                "case_count": self.case_count,
+                "recall_at_5": self.r_at_5,
+                "exact_at_5": self.exact_at_5,
+                "exact_at_10": (
+                    sum(1 if case.exact_at_10 else 0 for case in self.per_case) / self.case_count if self.case_count else 0.0
+                ),
+                "exact_at_20": (
+                    sum(1 if case.exact_at_20 else 0 for case in self.per_case) / self.case_count if self.case_count else 0.0
+                ),
+                "by_gold_cardinality": {
+                    cardinality: asdict(metrics)
+                    for cardinality, metrics in sorted(self.by_gold_cardinality.items(), key=lambda item: int(item[0]))
+                },
+            },
+            "divergence_examples": [asdict(example) for example in self.divergence_examples],
             "per_case": [asdict(case) for case in self.per_case],
             "profile": self.profile,
         }
@@ -211,6 +248,14 @@ def _dataset_sha256(dataset_path: str | Path) -> str:
                 break
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _case_id(entry: dict[str, Any], index: int, question: str) -> str:
+    raw_id = str(entry.get("id", "")).strip()
+    if raw_id and raw_id.lower() not in {"entry", "question", "case"}:
+        return raw_id
+    question_digest = sha256(question.encode("utf-8")).hexdigest()[:8]
+    return f"case_{index:03d}_{question_digest}"
 
 
 def _load_entries(path: str | Path) -> list[dict[str, Any]]:
@@ -619,6 +664,75 @@ def _chunk_session_scores(question: str, entry: PreparedLongMemEvalEntry) -> dic
     return scores
 
 
+def _by_gold_cardinality(results: list[LongMemEvalCaseResult]) -> dict[str, LongMemEvalCardinalityMetrics]:
+    buckets: dict[int, list[LongMemEvalCaseResult]] = {}
+    for result in results:
+        buckets.setdefault(len(set(result.correct_session_ids)), []).append(result)
+    summary: dict[str, LongMemEvalCardinalityMetrics] = {}
+    for cardinality, bucket in sorted(buckets.items()):
+        count = len(bucket)
+        recall = sum(1 if item.hit_at_5 else 0 for item in bucket) / count if count else 0.0
+        exact = sum(1 if item.exact_at_5 else 0 for item in bucket) / count if count else 0.0
+        exact_10 = sum(1 if item.exact_at_10 else 0 for item in bucket) / count if count else 0.0
+        exact_20 = sum(1 if item.exact_at_20 else 0 for item in bucket) / count if count else 0.0
+        summary[str(cardinality)] = LongMemEvalCardinalityMetrics(
+            count=count,
+            recall_at_5=recall,
+            exact_at_5=exact,
+            exact_at_10=exact_10,
+            exact_at_20=exact_20,
+        )
+    return summary
+
+
+def _divergence_examples(results: list[LongMemEvalCaseResult], *, limit: int = 3) -> list[LongMemEvalDivergenceExample]:
+    examples: list[LongMemEvalDivergenceExample] = []
+    for result in results:
+        if not result.hit_at_5 or result.exact_at_5:
+            continue
+        gold_set = set(result.correct_session_ids)
+        retrieved_top5 = result.retrieved_session_ids[:5]
+        retrieved_set = set(retrieved_top5)
+        if not (retrieved_set & gold_set):
+            continue
+        missing = [session_id for session_id in result.correct_session_ids if session_id not in retrieved_set]
+        examples.append(
+            LongMemEvalDivergenceExample(
+                case_id=result.query_id,
+                gold_set=list(result.correct_session_ids),
+                retrieved_top5=retrieved_top5,
+                missing=missing,
+            )
+        )
+        if len(examples) >= limit:
+            break
+    return examples
+
+
+def format_summary_table(report: LongMemEvalReport) -> str:
+    lines = [
+        f"=== {report.mode} (n={report.case_count}) ===",
+        (
+            f"overall          R@5={report.r_at_5 * 100:.1f}%  "
+            f"Exact@5={report.exact_at_5 * 100:.1f}%  "
+            f"Exact@10={sum(1 if case.exact_at_10 else 0 for case in report.per_case) / report.case_count * 100:.1f}%  "
+            f"Exact@20={sum(1 if case.exact_at_20 else 0 for case in report.per_case) / report.case_count * 100:.1f}%"
+        ),
+    ]
+    for cardinality, metrics in sorted(report.by_gold_cardinality.items(), key=lambda item: int(item[0])):
+        lines.append(
+            f"cardinality={cardinality}    "
+            f"R@5={metrics.recall_at_5 * 100:.1f}%  "
+            f"Exact@5={metrics.exact_at_5 * 100:.1f}%  "
+            f"Exact@10={metrics.exact_at_10 * 100:.1f}%  "
+            f"Exact@20={metrics.exact_at_20 * 100:.1f}%   "
+            f"(n={metrics.count})"
+        )
+    divergence_ids = ", ".join(example.case_id for example in report.divergence_examples) or "none"
+    lines.append(f"divergence: {divergence_ids}")
+    return "\n".join(lines)
+
+
 def _raw_candidate_order(question: str, entry: PreparedLongMemEvalEntry, question_embedding: np.ndarray, embedding_model: Any) -> list[PreparedLongMemEvalSession]:
     session_scores = _combined_candidate_scores(
         question,
@@ -672,7 +786,7 @@ def _hybrid_candidate_order(question: str, entry: PreparedLongMemEvalEntry, ques
         )
         fused_scores.append((score, -raw_rank[session.session_id], session))
     ordered = [item[2] for item in sorted(fused_scores, key=lambda item: (-item[0], item[1]))]
-    return ordered[:5]
+    return ordered[:20]
 
 
 def evaluate_longmemeval(
@@ -792,15 +906,19 @@ def evaluate_longmemeval(
         retrieved_session_ids = [session.session_id for session in ranked_sessions]
         gold_ids = prepared_entry.correct_session_ids
         retrieved_set = set(retrieved_session_ids[:5])
+        retrieved_set_10 = set(retrieved_session_ids[:10])
+        retrieved_set_20 = set(retrieved_session_ids[:20])
         gold_set = set(gold_ids)
         results.append(
             LongMemEvalCaseResult(
-                query_id=prepared_entry.query_id or str(entry.get("id", f"entry_{index}")),
+                query_id=_case_id(entry, index, question),
                 question=question,
                 correct_session_ids=gold_ids,
                 retrieved_session_ids=retrieved_session_ids[:5],
                 hit_at_5=bool(retrieved_set & gold_set),
                 exact_at_5=gold_set.issubset(retrieved_set),
+                exact_at_10=gold_set.issubset(retrieved_set_10),
+                exact_at_20=gold_set.issubset(retrieved_set_20),
             )
         )
         if profiler is not None:
@@ -823,6 +941,8 @@ def evaluate_longmemeval(
         cache_key=full_cache_key,
         r_at_5=hit_rate,
         exact_at_5=exact_rate,
+        by_gold_cardinality=_by_gold_cardinality(results),
+        divergence_examples=_divergence_examples(results),
         per_case=results,
         profile=profiler.to_dict() if profiler is not None else None,
     )
@@ -896,8 +1016,9 @@ def main(argv: list[str] | None = None) -> int:
         print("=" * 72)
         print("waggle LongMemEval held-out benchmark")
         print("=" * 72)
-        print(f"Dev R@5: {dev_report.r_at_5:.1%} | Test R@5: {test_report.r_at_5:.1%}")
-        print(f"Dev Exact@5: {dev_report.exact_at_5:.1%} | Test Exact@5: {test_report.exact_at_5:.1%}")
+        print(format_summary_table(dev_report))
+        print()
+        print(format_summary_table(test_report))
         
         if args.output is not None:
             output_dev = args.output.with_name(args.output.stem + "_dev" + args.output.suffix)
@@ -927,8 +1048,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"cache: warm ({report.cache_path})")
     else:
         print(f"cache: cold (wrote {report.cache_path})")
-    print(f"R@5: {report.r_at_5:.1%}")
-    print(f"Exact@5: {report.exact_at_5:.1%}")
+    print(format_summary_table(report))
     if report.profile:
         print(f"profile: {json.dumps(report.profile, sort_keys=True)}")
     if args.output is not None:

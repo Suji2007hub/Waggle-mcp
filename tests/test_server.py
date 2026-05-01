@@ -18,6 +18,8 @@ from waggle.server import (
     _build_parser,
     _default_graph,
     _run_admin_command,
+    _run_doctor,
+    _run_graph_editor_command,
     _run_setup,
     _setup_clients_from_args,
     _write_codex_agents,
@@ -29,6 +31,9 @@ from waggle.server import (
 
 
 class FakeEmbeddingModel:
+    model_name = "fake-model"
+    model_id = "fake-model:deterministic-v1"
+
     def embed(self, text: str) -> np.ndarray:
         vector = np.zeros(8, dtype=np.float32)
         for token in text.lower().split():
@@ -110,6 +115,332 @@ def test_tool_schemas_are_glama_friendly(tmp_path: Path) -> None:
         assert isinstance(tool.inputSchema["properties"], dict)
         for field_name, field_schema in tool.inputSchema["properties"].items():
             assert field_schema.get("description"), f"{tool.name}.{field_name} is missing a description"
+
+
+def test_parser_accepts_graph_editor_commands() -> None:
+    parser = _build_parser()
+
+    edit_args = parser.parse_args(["edit-graph", "--port", "8787", "--no-open"])
+    view_args = parser.parse_args(["view-graph"])
+    diff_args = parser.parse_args(["diff", "--file-a", "a.abhi", "--file-b", "b.abhi"])
+    merge_args = parser.parse_args(
+        ["merge", "--base", "base.abhi", "--left", "left.abhi", "--right", "right.abhi", "--output", "merged.abhi", "--merge-strategy", "last_write_wins"]
+    )
+    query_args = parser.parse_args(["query", "--input", "memory.abhi", "--query-id", "q1"])
+    load_chunks_args = parser.parse_args(["load-chunks", "--input", "memory.abhi", "--chunk-id", "decision_1"])
+    push_args = parser.parse_args(["push", "--client-secret-path", "client.json", "--folder-id", "folder123"])
+    pull_args = parser.parse_args(["pull", "file123", "--client-secret-path", "client.json"])
+    share_args = parser.parse_args(["share", "file123", "--client-secret-path", "client.json"])
+    oolong_args = parser.parse_args(
+        [
+            "benchmark-oolong",
+            "oolong.jsonl",
+            "--eval-mode",
+            "waggle_rlm",
+            "--llm-backend",
+            "gemini",
+            "--llm-model",
+            "gemini-2.5-flash-lite",
+            "--llm-api-key-env",
+            "GEMINI_API_KEY",
+        ]
+    )
+
+    assert edit_args.command == "edit-graph"
+    assert edit_args.port == 8787
+    assert edit_args.open is False
+    assert view_args.command == "view-graph"
+    assert view_args.open is True
+    assert diff_args.command == "diff"
+    assert diff_args.input_path_a_flag == "a.abhi"
+    assert merge_args.command == "merge"
+    assert merge_args.merge_strategy == "last_write_wins"
+    assert query_args.command == "query"
+    assert query_args.query_id == "q1"
+    assert load_chunks_args.command == "load-chunks"
+    assert load_chunks_args.chunk_ids == ["decision_1"]
+    assert push_args.command == "push"
+    assert push_args.encrypt is True
+    assert push_args.folder_id == "folder123"
+    assert pull_args.command == "pull"
+    assert pull_args.file_ref == "file123"
+    assert share_args.command == "share"
+    assert share_args.file_ref == "file123"
+    assert oolong_args.command == "benchmark-oolong"
+    assert oolong_args.dataset_path == "oolong.jsonl"
+    assert oolong_args.eval_mode == "waggle_rlm"
+    assert oolong_args.llm_backend == "gemini"
+    assert oolong_args.llm_model == "gemini-2.5-flash-lite"
+    assert oolong_args.llm_api_key_env == "GEMINI_API_KEY"
+    assert oolong_args.rlm_max_iterations == 6
+
+
+def test_doctor_flags_mixed_embedding_model_ids(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    db_path = tmp_path / "server-memory.db"
+    graph = MemoryGraph(db_path, FakeEmbeddingModel())
+    graph.observe_conversation(
+        user_message="Use FastAPI.",
+        assistant_response="Understood.",
+        session_id="mixed-models",
+        project="audit",
+    )
+
+    with graph._lock, graph._connect() as connection:
+        connection.execute(
+            """
+            UPDATE transcript_records
+            SET embedding_model_id = 'legacy-model:v0'
+            WHERE tenant_id = ? AND session_id = ? AND role = 'assistant'
+            """,
+            (graph.tenant_id, "mixed-models"),
+        )
+
+    config = AppConfig(
+        backend="sqlite",
+        transport="stdio",
+        model_name="fake-model",
+        db_path=str(db_path),
+        default_tenant_id="local-default",
+        http_host="127.0.0.1",
+        http_port=8080,
+        log_level="INFO",
+        rate_limit_rpm=120,
+        write_rate_limit_rpm=60,
+        max_concurrent_requests=8,
+        max_payload_bytes=1024 * 1024,
+        request_timeout_seconds=30,
+        export_dir=None,
+        neo4j_uri="",
+        neo4j_username="",
+        neo4j_password="",
+        neo4j_database="",
+    )
+
+    exit_code = _run_doctor(config)
+    stdout = capsys.readouterr().out
+
+    assert exit_code == 1
+    assert "Mixed embedding model IDs detected" in stdout
+
+
+def test_doctor_fix_reembeds_mixed_embedding_model_ids(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    db_path = tmp_path / "server-memory.db"
+    graph = MemoryGraph(db_path, FakeEmbeddingModel())
+    graph.observe_conversation(
+        user_message="Use FastAPI.",
+        assistant_response="Understood.",
+        session_id="mixed-models",
+        project="audit",
+    )
+
+    with graph._lock, graph._connect() as connection:
+        connection.execute(
+            """
+            UPDATE transcript_records
+            SET embedding_model_id = 'legacy-model:v0'
+            WHERE tenant_id = ? AND session_id = ? AND role = 'assistant'
+            """,
+            (graph.tenant_id, "mixed-models"),
+        )
+
+    config = AppConfig(
+        backend="sqlite",
+        transport="stdio",
+        model_name="fake-model",
+        db_path=str(db_path),
+        default_tenant_id="local-default",
+        http_host="127.0.0.1",
+        http_port=8080,
+        log_level="INFO",
+        rate_limit_rpm=120,
+        write_rate_limit_rpm=60,
+        max_concurrent_requests=8,
+        max_payload_bytes=1024 * 1024,
+        request_timeout_seconds=30,
+        export_dir=None,
+        neo4j_uri="",
+        neo4j_username="",
+        neo4j_password="",
+        neo4j_database="",
+    )
+
+    exit_code = _run_doctor(config, fix=True)
+    stdout = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "Re-embedded stale rows" in stdout
+    repaired = graph.get_embedding_store_health()
+    assert repaired["mixed_models"] is False
+    assert repaired["transcript_stale_rows"] == 0
+
+
+def test_run_admin_command_benchmark_oolong(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    config = AppConfig(
+        backend="sqlite",
+        transport="stdio",
+        model_name="fake-model",
+        db_path=str(tmp_path / "server-memory.db"),
+        default_tenant_id="local-default",
+        http_host="127.0.0.1",
+        http_port=8080,
+        log_level="INFO",
+        rate_limit_rpm=120,
+        write_rate_limit_rpm=60,
+        max_concurrent_requests=8,
+        max_payload_bytes=1024 * 1024,
+        request_timeout_seconds=30,
+        export_dir=None,
+        neo4j_uri="",
+        neo4j_username="",
+        neo4j_password="",
+        neo4j_database="",
+    )
+
+    class FakeReport:
+        def to_dict(self) -> dict[str, object]:
+            return {"case_count": 1, "accuracy": 1.0, "eval_mode": "retrieval_only"}
+
+    captured: dict[str, object] = {}
+
+    def fake_evaluate_oolong(*args: object, **kwargs: object) -> FakeReport:
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+        return FakeReport()
+
+    monkeypatch.setattr("waggle.server.evaluate_oolong", fake_evaluate_oolong)
+    monkeypatch.setattr("waggle.server.run_gemini_one_shot", lambda **_: "coffee")
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+
+    args = SimpleNamespace(
+        command="benchmark-oolong",
+        dataset_path="oolong.jsonl",
+        dataset_kind="auto",
+        context_field="auto",
+        eval_mode="retrieval_only",
+        llm_command="",
+        llm_backend="gemini",
+        llm_model="gemini-2.5-flash-lite",
+        llm_api_key_env="GEMINI_API_KEY",
+        llm_max_tokens=512,
+        llm_timeout_seconds=60.0,
+        retrieval_mode="graph",
+        max_nodes=8,
+        max_depth=1,
+        chunk_lines=12,
+        chunk_overlap_lines=3,
+        rlm_system_prompt_file="",
+        rlm_max_iterations=6,
+        limit=None,
+        output="",
+    )
+
+    exit_code = _run_admin_command(config, args)
+    stdout = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert captured["args"] == ("oolong.jsonl",)
+    assert captured["kwargs"]["eval_mode"] == "retrieval_only"
+    assert captured["kwargs"]["retrieval_mode"] == "graph"
+    assert callable(captured["kwargs"]["llm_answerer"])
+    assert captured["kwargs"]["rlm_backend"] == "gemini"
+    assert captured["kwargs"]["rlm_backend_kwargs"] == {
+        "api_key": "test-key",
+        "model_name": "gemini-2.5-flash-lite",
+    }
+    assert '"accuracy": 1.0' in stdout
+
+
+def test_run_graph_editor_command_opens_browser_and_starts_uvicorn(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    config = AppConfig(
+        backend="sqlite",
+        transport="stdio",
+        model_name="fake-model",
+        db_path=str(tmp_path / "server-memory.db"),
+        default_tenant_id="local-default",
+        http_host="127.0.0.1",
+        http_port=8080,
+        log_level="INFO",
+        rate_limit_rpm=120,
+        write_rate_limit_rpm=60,
+        max_concurrent_requests=8,
+        max_payload_bytes=1024 * 1024,
+        request_timeout_seconds=30,
+        export_dir=None,
+        neo4j_uri="",
+        neo4j_username="",
+        neo4j_password="",
+        neo4j_database="",
+    )
+    args = SimpleNamespace(host="127.0.0.1", port=8787, open=True)
+    opened: dict[str, str] = {}
+    served: dict[str, object] = {}
+
+    class ImmediateTimer:
+        def __init__(self, interval: float, fn):
+            self.interval = interval
+            self.fn = fn
+            self.daemon = False
+
+        def start(self) -> None:
+            self.fn()
+
+    monkeypatch.setattr("waggle.server.webbrowser.open", lambda url: opened.setdefault("url", url))
+    monkeypatch.setattr("waggle.server.threading.Timer", ImmediateTimer)
+    monkeypatch.setattr(
+        "waggle.server.uvicorn.run",
+        lambda app, host, port, log_level: served.update(
+            {"app": app, "host": host, "port": port, "log_level": log_level}
+        ),
+    )
+
+    exit_code = _run_graph_editor_command(config, args)
+
+    assert exit_code == 0
+    assert opened["url"] == "http://127.0.0.1:8787/graph?mode=edit"
+    assert served["host"] == "127.0.0.1"
+    assert served["port"] == 8787
+
+
+def test_run_view_graph_command_opens_read_only_url(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    config = AppConfig(
+        backend="sqlite",
+        transport="stdio",
+        model_name="fake-model",
+        db_path=str(tmp_path / "server-memory.db"),
+        default_tenant_id="local-default",
+        http_host="127.0.0.1",
+        http_port=8080,
+        log_level="INFO",
+        rate_limit_rpm=120,
+        write_rate_limit_rpm=60,
+        max_concurrent_requests=8,
+        max_payload_bytes=1024 * 1024,
+        request_timeout_seconds=30,
+        export_dir=None,
+        neo4j_uri="",
+        neo4j_username="",
+        neo4j_password="",
+        neo4j_database="",
+    )
+    args = SimpleNamespace(command="view-graph", host="127.0.0.1", port=8787, open=True)
+    opened: dict[str, str] = {}
+
+    class ImmediateTimer:
+        def __init__(self, interval: float, fn):
+            self.fn = fn
+            self.daemon = False
+
+        def start(self) -> None:
+            self.fn()
+
+    monkeypatch.setattr("waggle.server.webbrowser.open", lambda url: opened.setdefault("url", url))
+    monkeypatch.setattr("waggle.server.threading.Timer", ImmediateTimer)
+    monkeypatch.setattr("waggle.server.uvicorn.run", lambda *args, **kwargs: None)
+
+    exit_code = _run_graph_editor_command(config, args)
+
+    assert exit_code == 0
+    assert opened["url"] == "http://127.0.0.1:8787/graph?mode=view"
 
 
 def test_memory_policy_prompt_and_resource(tmp_path: Path) -> None:
@@ -241,6 +572,175 @@ def test_export_and_import_backup_tools(tmp_path: Path) -> None:
     assert imported.isError is False
     assert imported.structuredContent["nodes_created"] == 1
     assert target.graph.get_stats().total_nodes == 1
+
+
+def test_export_validate_inspect_and_import_abhi_tools(tmp_path: Path) -> None:
+    source = make_app(tmp_path / "source")
+    target = make_app(tmp_path / "target")
+    source.handle_tool_call(
+        "store_node",
+        {
+            "label": "ABHI Tool Node",
+            "content": "This node should survive an ABHI round trip.",
+            "node_type": NodeType.NOTE.value,
+        },
+    )
+
+    exported = source.handle_tool_call(
+        "export_abhi",
+        {"output_path": str(tmp_path / "memory.abhi")},
+    )
+    validated = source.handle_tool_call(
+        "validate_abhi",
+        {"input_path": exported.structuredContent["output_path"]},
+    )
+    inspected = source.handle_tool_call(
+        "inspect_abhi",
+        {"input_path": exported.structuredContent["output_path"]},
+    )
+    imported = target.handle_tool_call(
+        "import_abhi",
+        {"input_path": exported.structuredContent["output_path"]},
+    )
+
+    assert exported.isError is False
+    assert exported.structuredContent["content_hash"].startswith("sha256:")
+    assert validated.isError is False
+    assert validated.structuredContent["valid"] is True
+    assert inspected.isError is False
+    assert inspected.structuredContent["node_count"] == 1
+    assert imported.isError is False
+    assert imported.structuredContent["hash_verified"] is True
+    assert imported.structuredContent["nodes_created"] == 1
+
+
+def test_export_abhi_tool_refuses_likely_secrets_without_force(tmp_path: Path) -> None:
+    app = make_app(tmp_path)
+    app.graph.observe_conversation(
+        user_message="My token is sk-abcdefghijklmnopqrstuvwxyz123456.",
+        assistant_response="I will not repeat the token.",
+        session_id="secret-session",
+        project="security",
+    )
+
+    refused = app.handle_tool_call(
+        "export_abhi",
+        {"output_path": str(tmp_path / "secret.abhi"), "project": "security"},
+    )
+    forced = app.handle_tool_call(
+        "export_abhi",
+        {"output_path": str(tmp_path / "secret-forced.abhi"), "project": "security", "force": True},
+    )
+
+    assert refused.isError is True
+    assert "appear to contain secrets" in refused.content[0].text
+    assert forced.isError is False
+    assert Path(forced.structuredContent["output_path"]).exists()
+
+
+def test_diff_and_merge_abhi_tools(tmp_path: Path) -> None:
+    base_app = make_app(tmp_path / "base")
+    left_app = make_app(tmp_path / "left")
+    right_app = make_app(tmp_path / "right")
+
+    for app in (base_app, left_app, right_app):
+        app.handle_tool_call(
+            "store_node",
+            {
+                "label": "Decision",
+                "content": "Use PostgreSQL",
+                "node_type": NodeType.DECISION.value,
+            },
+        )
+
+    left_app.handle_tool_call(
+        "store_node",
+        {
+            "label": "Reason",
+            "content": "Operational familiarity matters.",
+            "node_type": NodeType.NOTE.value,
+        },
+    )
+    right_app.graph.update_node(
+        node_id=right_app.graph.list_recent_nodes(limit=1)[0].id,
+        content="Use PostgreSQL with managed backups",
+    )
+
+    base_file = base_app.handle_tool_call("export_abhi", {"output_path": str(tmp_path / "base.abhi")})
+    left_file = left_app.handle_tool_call("export_abhi", {"output_path": str(tmp_path / "left.abhi")})
+    right_file = right_app.handle_tool_call("export_abhi", {"output_path": str(tmp_path / "right.abhi")})
+
+    diff_result = base_app.handle_tool_call(
+        "diff_abhi",
+        {
+            "input_path_a": left_file.structuredContent["output_path"],
+            "input_path_b": right_file.structuredContent["output_path"],
+        },
+    )
+    merge_result = base_app.handle_tool_call(
+        "merge_abhi",
+        {
+            "base_input_path": base_file.structuredContent["output_path"],
+            "left_input_path": left_file.structuredContent["output_path"],
+            "right_input_path": right_file.structuredContent["output_path"],
+            "output_path": str(tmp_path / "merged.abhi"),
+        },
+    )
+
+    assert diff_result.isError is False
+    assert diff_result.structuredContent["nodes_added"] or diff_result.structuredContent["nodes_removed"]
+    assert merge_result.isError is False
+    assert Path(merge_result.structuredContent["output_path"]).exists()
+    assert merge_result.structuredContent["nodes_merged"] >= 1
+
+
+def test_query_abhi_tool(tmp_path: Path) -> None:
+    app = make_app(tmp_path)
+    app.handle_tool_call(
+        "store_node",
+        {
+            "label": "Decision",
+            "content": "Use PostgreSQL",
+            "node_type": NodeType.DECISION.value,
+        },
+    )
+    exported = app.handle_tool_call("export_abhi", {"output_path": str(tmp_path / "memory.abhi")})
+    queried = app.handle_tool_call(
+        "query_abhi",
+        {
+            "input_path": exported.structuredContent["output_path"],
+            "query_id": "q1",
+        },
+    )
+
+    assert queried.isError is False
+    assert queried.structuredContent["query_id"] == "q1"
+    assert "queried_abhi" in queried.structuredContent["executed_actions"]
+
+
+def test_load_abhi_chunks_tool(tmp_path: Path) -> None:
+    app = make_app(tmp_path)
+    for index in range(70):
+        app.handle_tool_call(
+            "store_node",
+            {
+                "label": f"Decision {index}",
+                "content": f"Use PostgreSQL for service {index}",
+                "node_type": NodeType.DECISION.value,
+            },
+        )
+    exported = app.handle_tool_call("export_abhi", {"output_path": str(tmp_path / "memory.abhi")})
+    loaded = app.handle_tool_call(
+        "load_abhi_chunks",
+        {
+            "input_path": exported.structuredContent["output_path"],
+            "query_text": "FIND nodes WHERE type='decision'",
+        },
+    )
+
+    assert loaded.isError is False
+    assert loaded.structuredContent["chunk_ids"]
+    assert loaded.structuredContent["available_chunk_count"] >= 2
 
 
 def test_export_context_bundle_tool(tmp_path: Path) -> None:
@@ -425,11 +925,11 @@ def test_debug_retrieval_tool(tmp_path: Path) -> None:
     result = app.handle_tool_call("debug_retrieval", {"query": "debug retrieval details", "project": "alpha"})
 
     assert result.isError is False
-    assert result.structuredContent["repo_id"].endswith(":alpha")
-    assert result.structuredContent["embedding_preview"]
-    assert result.structuredContent["selected_windows"]
-    assert result.structuredContent["flat_top_nodes"]
-    assert result.structuredContent["tiered_top_nodes"]
+    assert result.structuredContent["retrieval_mode"] == "hybrid"
+    assert result.structuredContent["layers"]["vector_transcript"] == []
+    assert result.structuredContent["layers"]["vector_node"]
+    assert result.structuredContent["layers"]["lexical"]
+    assert result.structuredContent["hybrid_top_hits"]
 
 
 def test_export_context_bundle_cli_command(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

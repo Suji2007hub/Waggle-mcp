@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from waggle.errors import ValidationFailure
+from waggle.retrieval.hybrid import HybridRetrievalConfig
 
 DEFAULT_DB_PATH = "~/.waggle/memory.db"
 
@@ -37,6 +38,14 @@ class AppConfig:
     recency_half_life_days: float = 30.0
     tiered_retrieval: bool = False
     tiered_retrieval_top_k_windows: int = 3
+    hybrid_vector_weight: float = 1.0
+    hybrid_bm25_weight: float = 1.0
+    hybrid_graph_weight: float = 1.0
+    hybrid_recency_weight: float = 1.0
+    hybrid_rerank_enabled: bool = False
+    hybrid_rerank_model: str = "claude-3-5-sonnet-latest"
+    hybrid_rerank_top_k_in: int = 20
+    hybrid_rerank_top_k_out: int = 5
     startup_mode: str = STARTUP_MODE_NORMAL  # fast | normal | strict
 
     @classmethod
@@ -59,6 +68,14 @@ class AppConfig:
             max_payload_bytes=int(os.environ.get("WAGGLE_MAX_PAYLOAD_BYTES", str(1024 * 1024))),
             request_timeout_seconds=int(os.environ.get("WAGGLE_REQUEST_TIMEOUT_SECONDS", "30")),
             recency_half_life_days=float(os.environ.get("WAGGLE_RECENCY_HALF_LIFE_DAYS", "30.0")),
+            hybrid_vector_weight=float(os.environ.get("WAGGLE_HYBRID_VECTOR_WEIGHT", "1.0")),
+            hybrid_bm25_weight=float(os.environ.get("WAGGLE_HYBRID_BM25_WEIGHT", "1.0")),
+            hybrid_graph_weight=float(os.environ.get("WAGGLE_HYBRID_GRAPH_WEIGHT", "1.0")),
+            hybrid_recency_weight=float(os.environ.get("WAGGLE_HYBRID_RECENCY_WEIGHT", "1.0")),
+            hybrid_rerank_enabled=os.environ.get("WAGGLE_HYBRID_RERANK_ENABLED", "false").strip().lower() == "true",
+            hybrid_rerank_model=os.environ.get("WAGGLE_HYBRID_RERANK_MODEL", "claude-3-5-sonnet-latest").strip(),
+            hybrid_rerank_top_k_in=int(os.environ.get("WAGGLE_HYBRID_RERANK_TOP_K_IN", "20")),
+            hybrid_rerank_top_k_out=int(os.environ.get("WAGGLE_HYBRID_RERANK_TOP_K_OUT", "5")),
             export_dir=os.environ.get("WAGGLE_EXPORT_DIR"),
             neo4j_uri=os.environ.get("WAGGLE_NEO4J_URI", "").strip(),
             neo4j_username=os.environ.get("WAGGLE_NEO4J_USERNAME", "").strip(),
@@ -95,6 +112,23 @@ class AppConfig:
             raise ValidationFailure("WAGGLE_RECENCY_HALF_LIFE_DAYS must be greater than 0.")
         if self.tiered_retrieval_top_k_windows < 1:
             raise ValidationFailure("WAGGLE_TIERED_TOP_K_WINDOWS must be at least 1.")
+        if self.hybrid_rerank_top_k_in < 1:
+            raise ValidationFailure("WAGGLE_HYBRID_RERANK_TOP_K_IN must be at least 1.")
+        if self.hybrid_rerank_top_k_out < 1:
+            raise ValidationFailure("WAGGLE_HYBRID_RERANK_TOP_K_OUT must be at least 1.")
+
+    def hybrid_retrieval_config(self) -> HybridRetrievalConfig:
+        return HybridRetrievalConfig(
+            vector_weight=self.hybrid_vector_weight,
+            bm25_weight=self.hybrid_bm25_weight,
+            graph_weight=self.hybrid_graph_weight,
+            recency_weight=self.hybrid_recency_weight,
+            rerank_enabled=self.hybrid_rerank_enabled,
+            rerank_model=self.hybrid_rerank_model,
+            rerank_top_k_in=self.hybrid_rerank_top_k_in,
+            rerank_top_k_out=self.hybrid_rerank_top_k_out,
+            recency_half_life_days=self.recency_half_life_days,
+        )
 
     @property
     def is_fast_mode(self) -> bool:
