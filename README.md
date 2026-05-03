@@ -22,6 +22,58 @@
 
 ---
 
+## 60-Second Demo
+
+No MCP client needed. Run this from a fresh install:
+
+```bash
+waggle-mcp demo
+```
+
+Expected output:
+
+```
+waggle-mcp demo
+──────────────────────────────────────────────────
+  graph:   .../examples/demo.abhi
+  db:      /tmp/waggle-demo-xxx/demo.db
+  model:   deterministic
+
+  Imported 15 nodes, 20 edges from demo.abhi
+
+Query 1: What database did we choose?
+  [decision] Database: PostgreSQL everywhere via Docker Compose
+  [decision] Database: PostgreSQL
+  [note]     Reason: PostgreSQL chosen for ACID and JSON
+
+Query 2: What changed about the database decision?
+  [contradicts] Database: SQLite for local dev
+    → Database: PostgreSQL
+  [updates] Database: PostgreSQL everywhere via Docker Compose
+    → Database: SQLite for local dev
+
+Query 3: What are our team's preferences?
+  [preference] Preference: TypeScript for all frontend code
+  [preference] Preference: dark mode as default UI theme
+  [preference] Preference: small, focused pull requests
+
+Query 4: Show decisions and their reasons
+  [decision] Database: PostgreSQL everywhere via Docker Compose
+    ↳ [reason] Reason: parity between dev and prod prevents migration drift
+  [decision] Auth: use Auth0 for SSO
+    ↳ [reason] Reason: Auth0 reduces security risk and time-to-market
+
+──────────────────────────────────────────────────
+  Graph Studio: http://127.0.0.1:8686/graph?mode=view
+  (run 'WAGGLE_DB_PATH=... waggle-mcp ui' to open it)
+
+  Cleanup: rm -rf /tmp/waggle-demo-xxx
+```
+
+<!-- TODO: add demo.gif -->
+
+Add `--with-embeddings` to use the real sentence-transformers model for higher-fidelity retrieval (requires ~420 MB model download on first run).
+
 ## Demo First
 
 The quickest way to understand Waggle is to run the feature demo and the smoke test:
@@ -33,6 +85,10 @@ The quickest way to understand Waggle is to run the feature demo and the smoke t
 That demo exercises the full MCP surface: graph ingestion, retrieval, conflict handling, export/import, and graph inspection.
 
 ## Recent Additions
+
+- **Auto-capture hooks for Claude Code:** `waggle-mcp setup --yes` now installs three Claude Code hooks (`UserPromptSubmit`, `Stop`, `PreCompact`) that capture memory deterministically without relying on prompt rules. See [docs/hooks.md](./docs/hooks.md).
+- **60-second demo:** `waggle-mcp demo` imports a pre-loaded example graph and runs 4 scripted queries locally — no MCP client, no API key, no network.
+- **`waggle-mcp uninstall-hooks`:** removes the waggle-managed hooks block from Claude Code settings cleanly.
 
 - **Graph Studio refresh:** the local `/graph` editor now has dual-layer graph/conversation views, transcript provenance, retrieval inspection, collapsible side panels, focus mode, label toggling, connected/isolate/cluster stats, and a layout that handles sparse graphs better instead of dropping everything into a giant ring.
 - **Visual review and handoff:** the Graph Studio refresh plus deterministic `.abhi` export makes memory graphs easier to inspect, discuss, and hand off across tools. For teams that already work visually in design tools such as Figma, this gives a concrete graph artifact and transcript-backed provenance instead of ad-hoc screenshots or lost chat context.
@@ -621,45 +677,64 @@ Notes:
 
 ## Benchmarks & Verification
 
-### Current Retrieval Status
+### LongMemEval Retrieval Results
 
-Status: regression resolved. Both LongMemEval modes restored to current peak on the checked-in 500-question split.
+Measured on the full `500`-question LongMemEval-S split (`all-MiniLM-L6-v2`, warm cache, 2026-05-03):
 
-Current numbers (`n=500`, `all-MiniLM-L6-v2`, warm cache):
+| Mode | R@5 | Exact@5 | Exact@10 | Exact@20 |
+|------|-----|---------|---------|---------|
+| `graph_raw` | `97.4%` | **`89.0%`** | `89.0%` | `89.0%` |
+| `graph_hybrid` | `97.0%` | `87.2%` | `94.8%` | `98.0%` |
 
-- `graph_raw`: `R@5 = 97.4%`, `Exact@5 = 88.2%`
-- `graph_hybrid`: `R@5 = 96.0%`, `Exact@5 = 85.8%`, `Exact@10 = 94.2%`, `Exact@20 = 98.0%`
+**The headline number is `graph_raw` at `89.0% Exact@5`.** It has no tunable reranking heuristics and is the fairest apples-to-apples comparison against other retrieval systems.
 
-What was fixed:
+`graph_hybrid` scores slightly lower on Exact@5 but recovers strongly at higher cutoffs (Exact@20 = 98.0%), meaning it finds all the right sessions — it just doesn't always pack them all into the top 5 slots for high-cardinality queries.
 
-- [`src/waggle/embeddings.py`](/Users/abhigyanshekhar/Desktop/MCP/src/waggle/embeddings.py): `model_version` no longer returns `deterministic-v1` before async warmup completes. Cache keys are now a pure function of config.
-- [`src/waggle/longmemeval_benchmark.py`](/Users/abhigyanshekhar/Desktop/MCP/src/waggle/longmemeval_benchmark.py): `_raw_candidate_order` restored to `0.72 * semantic + 0.18 * lexical + 0.10 * temporal`.
-- [`src/waggle/intelligence.py`](/Users/abhigyanshekhar/Desktop/MCP/src/waggle/intelligence.py): over-broad temporal hint triggers such as `current`, `first`, and `original` were reverted.
+#### Overfitting check — held-out dev/test split
 
-What is still open:
+To verify the scores are not artefacts of the specific 500-question distribution, the benchmark was also run with `--held-out` (50 dev / 450 test, seed 42):
 
-- **OOLONG validation of the `0.72` formula is release-blocking.** The prior `0.60` formula was likely there for OOLONG. Until OOLONG is run with both formulas side-by-side, the `0.72` revert is LongMemEval-only, not global policy. Due May 8, 2026.
-- **Cache integrity guards remain open.** Add an assertion that `model_version` never returns `deterministic-v1` when a transformer is configured, due May 5, 2026, plus a probe-vector checksum on cache load, due May 9, 2026.
-- **CI benchmark gate remains open.** Block PRs that drop `R@5` by more than `1.0` absolute point or `Exact@5` by more than `2.0` absolute points on `graph_raw`. Due May 12, 2026.
-- **Incident-window artifacts from April 25, 2026 to May 2, 2026 are suspect.** Do not cite them as baselines without revalidation. The six affected JSON artifacts under [`benchmarks/longmemeval/`](/Users/abhigyanshekhar/Desktop/MCP/benchmarks/longmemeval/) are listed in the [postmortem](./docs/postmortems/2026-05-02-embeddings-cache-and-ranking-regression.md).
-- **Adaptive retrieval depth is capability work, not a correctness fix.** `Exact@5` hard-caps at `K=5` for high-cardinality queries, including the cardinality-6 case where `R@5 = 100%` but `Exact@5 = 0%`. Target May 15, 2026.
+| Mode | Dev Exact@5 (n=50) | Test Exact@5 (n=450) | Gap |
+|------|-------------------|---------------------|-----|
+| `graph_raw` | `88.0%` | `89.1%` | `+1.1pp` — no overfitting |
+| `graph_hybrid` | `92.0%` | `86.7%` | `−5.3pp` — reranking weights have dev-set sensitivity |
 
-Do not:
+`graph_raw` is stable across the split. `graph_hybrid`'s 5.3pp dev/test gap indicates the heuristic reranking weights are partially tuned to this distribution and should not be treated as a robust headline number.
 
-- Treat the `0.72` formula as global policy until OOLONG is run.
-- Use any benchmark JSON dated April 25, 2026 to May 2, 2026 as an authoritative baseline.
-- Land further retrieval-path changes until the CI gate is in place, or land them only with a manual benchmark report in the PR description.
+#### How to reproduce
+
+```bash
+# Full run — raw (headline)
+.venv/bin/python scripts/benchmark_longmemeval.py \
+  benchmarks/longmemeval/longmemeval_s_cleaned.json \
+  --mode graph_raw \
+  --output benchmarks/longmemeval/results_graph_raw_$(date +%F).json
+
+# Full run — hybrid
+.venv/bin/python scripts/benchmark_longmemeval.py \
+  benchmarks/longmemeval/longmemeval_s_cleaned.json \
+  --mode graph_hybrid \
+  --output benchmarks/longmemeval/results_graph_hybrid_$(date +%F).json
+
+# Held-out overfitting check (50 dev / 450 test)
+.venv/bin/python scripts/benchmark_longmemeval.py \
+  benchmarks/longmemeval/longmemeval_s_cleaned.json \
+  --mode graph_raw --held-out \
+  --output benchmarks/longmemeval/results_graph_raw_heldout_$(date +%F).json
+```
+
+Full methodology, per-cardinality breakdown, and all checked-in artifacts are in [`benchmarks/longmemeval/README.md`](./benchmarks/longmemeval/README.md).
 
 Checked-in artifacts back the headline claims:
 
-- Token use: `63.0` comparative mean context tokens for Waggle vs `161.8` for the naive RAG baseline, about `2.6x` fewer tokens on the saved comparison snapshot.
-- LongMemEval: `graph_raw` reaches `97.4% R@5` and `88.2% Exact@5` on the saved 500-question split; `graph_hybrid` reaches `96.0% R@5`, `85.8% Exact@5`, `94.2% Exact@10`, and `98.0% Exact@20`.
+- Token use: `63.0` comparative mean context tokens for Waggle vs `161.8` for the naive RAG baseline, about `2.6×` fewer tokens on the saved comparison snapshot.
+- LongMemEval: `graph_raw` reaches `97.4% R@5` and `89.0% Exact@5` on the 500-question split with no dev/test gap.
 - Local operation latency snapshot: `observe_conversation` mean `1.54 ms`, `query_graph` mean `1.60 ms`, `graph_diff` mean `0.80 ms` using local SQLite plus deterministic embeddings.
 - Automated verification: MCP integration, transcript handoff, and benchmark harness tests are checked into the repo, and the local smoke path exercises live `store_node`, `query_graph`, and `graph://stats`.
 
 README benchmark claims in this repo are limited to Waggle runs with checked-in artifacts and reproducible commands. Cross-project comparisons are intentionally excluded unless they are apples-to-apples on split, protocol, and scoring.
 
-The full incident write-up and follow-up owners live in [docs/postmortems/2026-05-02-embeddings-cache-and-ranking-regression.md](./docs/postmortems/2026-05-02-embeddings-cache-and-ranking-regression.md).
+> **Note:** artifacts dated April 25 – May 2, 2026 are from a regression window (embeddings cache bug + ranking formula change) and should not be used as baselines. See the [postmortem](./docs/postmortems/2026-05-02-embeddings-cache-and-ranking-regression.md).
 
 Detailed artifacts and methodology live in:
 

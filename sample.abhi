@@ -1,0 +1,612 @@
+{
+  "graph": {
+    "nodes": [
+      {
+        "id": "a1b2c3d4-0001-4000-8000-000000000001",
+        "type": "goal",
+        "content": "Build a production-ready REST API for a task management app.",
+        "metadata": {
+          "label": "Project Goal",
+          "tenant_id": "local-default",
+          "agent_id": "kiro",
+          "project": "task-manager",
+          "session_id": "session-001",
+          "context_window_id": "local-default:task-manager:session-001",
+          "tags": ["project", "api", "backend"],
+          "source_prompt": "Let's build a task management API.",
+          "evidence_records": [],
+          "valid_from": null,
+          "valid_to": null,
+          "created_at": "2026-05-01T10:00:00.000000+00:00",
+          "updated_at": "2026-05-01T10:00:00.000000+00:00",
+          "ts": "2026-05-01T10:00:00.000000+00:00",
+          "access_count": 3
+        }
+      },
+      {
+        "id": "a1b2c3d4-0001-4000-8000-000000000002",
+        "type": "decision",
+        "content": "Use FastAPI as the web framework for the REST API.",
+        "metadata": {
+          "label": "Framework Choice",
+          "tenant_id": "local-default",
+          "agent_id": "kiro",
+          "project": "task-manager",
+          "session_id": "session-001",
+          "context_window_id": "local-default:task-manager:session-001",
+          "tags": ["framework", "python", "fastapi"],
+          "source_prompt": "Which framework should we use?",
+          "evidence_records": [],
+          "valid_from": null,
+          "valid_to": null,
+          "created_at": "2026-05-01T10:05:00.000000+00:00",
+          "updated_at": "2026-05-01T10:05:00.000000+00:00",
+          "ts": "2026-05-01T10:05:00.000000+00:00",
+          "access_count": 5
+        }
+      },
+      {
+        "id": "a1b2c3d4-0001-4000-8000-000000000003",
+        "type": "reason",
+        "content": "FastAPI provides automatic OpenAPI docs, async support, and strong type validation via Pydantic.",
+        "metadata": {
+          "label": "FastAPI Rationale",
+          "tenant_id": "local-default",
+          "agent_id": "kiro",
+          "project": "task-manager",
+          "session_id": "session-001",
+          "context_window_id": "local-default:task-manager:session-001",
+          "tags": ["rationale", "fastapi"],
+          "source_prompt": "",
+          "evidence_records": [],
+          "valid_from": null,
+          "valid_to": null,
+          "created_at": "2026-05-01T10:05:30.000000+00:00",
+          "updated_at": "2026-05-01T10:05:30.000000+00:00",
+          "ts": "2026-05-01T10:05:30.000000+00:00",
+          "access_count": 2
+        }
+      },
+      {
+        "id": "a1b2c3d4-0001-4000-8000-000000000004",
+        "type": "decision",
+        "content": "Use PostgreSQL as the primary database.",
+        "metadata": {
+          "label": "Database Choice",
+          "tenant_id": "local-default",
+          "agent_id": "kiro",
+          "project": "task-manager",
+          "session_id": "session-001",
+          "context_window_id": "local-default:task-manager:session-001",
+          "tags": ["database", "postgres"],
+          "source_prompt": "What database should we use?",
+          "evidence_records": [],
+          "valid_from": null,
+          "valid_to": null,
+          "created_at": "2026-05-01T10:10:00.000000+00:00",
+          "updated_at": "2026-05-01T10:10:00.000000+00:00",
+          "ts": "2026-05-01T10:10:00.000000+00:00",
+          "access_count": 4
+        }
+      },
+      {
+        "id": "a1b2c3d4-0001-4000-8000-000000000005",
+        "type": "constraint",
+        "content": "The API must respond within 200ms for all read endpoints under normal load.",
+        "metadata": {
+          "label": "Latency Constraint",
+          "tenant_id": "local-default",
+          "agent_id": "kiro",
+          "project": "task-manager",
+          "session_id": "session-001",
+          "context_window_id": "local-default:task-manager:session-001",
+          "tags": ["performance", "sla"],
+          "source_prompt": "We need fast reads.",
+          "evidence_records": [],
+          "valid_from": null,
+          "valid_to": null,
+          "created_at": "2026-05-01T10:15:00.000000+00:00",
+          "updated_at": "2026-05-01T10:15:00.000000+00:00",
+          "ts": "2026-05-01T10:15:00.000000+00:00",
+          "access_count": 1
+        }
+      },
+      {
+        "id": "a1b2c3d4-0001-4000-8000-000000000006",
+        "type": "preference",
+        "content": "User prefers snake_case for all JSON field names in API responses.",
+        "metadata": {
+          "label": "Naming Convention",
+          "tenant_id": "local-default",
+          "agent_id": "kiro",
+          "project": "task-manager",
+          "session_id": "session-001",
+          "context_window_id": "local-default:task-manager:session-001",
+          "tags": ["style", "api-design"],
+          "source_prompt": "Use snake_case please.",
+          "evidence_records": [],
+          "valid_from": null,
+          "valid_to": null,
+          "created_at": "2026-05-01T10:20:00.000000+00:00",
+          "updated_at": "2026-05-01T10:20:00.000000+00:00",
+          "ts": "2026-05-01T10:20:00.000000+00:00",
+          "access_count": 6
+        }
+      },
+      {
+        "id": "a1b2c3d4-0001-4000-8000-000000000007",
+        "type": "entity",
+        "content": "Task — a unit of work with fields: id, title, description, status, due_date, assignee_id.",
+        "metadata": {
+          "label": "Task Entity",
+          "tenant_id": "local-default",
+          "agent_id": "kiro",
+          "project": "task-manager",
+          "session_id": "session-001",
+          "context_window_id": "local-default:task-manager:session-001",
+          "tags": ["entity", "data-model"],
+          "source_prompt": "",
+          "evidence_records": [],
+          "valid_from": null,
+          "valid_to": null,
+          "created_at": "2026-05-01T10:25:00.000000+00:00",
+          "updated_at": "2026-05-01T10:25:00.000000+00:00",
+          "ts": "2026-05-01T10:25:00.000000+00:00",
+          "access_count": 7
+        }
+      },
+      {
+        "id": "a1b2c3d4-0001-4000-8000-000000000008",
+        "type": "fact",
+        "content": "Authentication will use JWT tokens with a 24-hour expiry.",
+        "metadata": {
+          "label": "Auth Mechanism",
+          "tenant_id": "local-default",
+          "agent_id": "kiro",
+          "project": "task-manager",
+          "session_id": "session-001",
+          "context_window_id": "local-default:task-manager:session-001",
+          "tags": ["auth", "security", "jwt"],
+          "source_prompt": "How do we handle auth?",
+          "evidence_records": [],
+          "valid_from": null,
+          "valid_to": null,
+          "created_at": "2026-05-01T10:30:00.000000+00:00",
+          "updated_at": "2026-05-01T10:30:00.000000+00:00",
+          "ts": "2026-05-01T10:30:00.000000+00:00",
+          "access_count": 3
+        }
+      },
+      {
+        "id": "a1b2c3d4-0001-4000-8000-000000000009",
+        "type": "note",
+        "content": "Consider adding Redis caching for the GET /tasks list endpoint if latency SLA is hard to meet with Postgres alone.",
+        "metadata": {
+          "label": "Caching Note",
+          "tenant_id": "local-default",
+          "agent_id": "kiro",
+          "project": "task-manager",
+          "session_id": "session-001",
+          "context_window_id": "local-default:task-manager:session-001",
+          "tags": ["performance", "redis", "future"],
+          "source_prompt": "",
+          "evidence_records": [],
+          "valid_from": null,
+          "valid_to": null,
+          "created_at": "2026-05-01T10:35:00.000000+00:00",
+          "updated_at": "2026-05-01T10:35:00.000000+00:00",
+          "ts": "2026-05-01T10:35:00.000000+00:00",
+          "access_count": 1
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1000001",
+        "type": "depends_on",
+        "from": "a1b2c3d4-0001-4000-8000-000000000002",
+        "to": "a1b2c3d4-0001-4000-8000-000000000003",
+        "metadata": {
+          "created_at": "2026-05-01T10:05:30.000000+00:00",
+          "weight": 1.0
+        }
+      },
+      {
+        "id": "e1000002",
+        "type": "part_of",
+        "from": "a1b2c3d4-0001-4000-8000-000000000002",
+        "to": "a1b2c3d4-0001-4000-8000-000000000001",
+        "metadata": {
+          "created_at": "2026-05-01T10:06:00.000000+00:00",
+          "weight": 1.0
+        }
+      },
+      {
+        "id": "e1000003",
+        "type": "part_of",
+        "from": "a1b2c3d4-0001-4000-8000-000000000004",
+        "to": "a1b2c3d4-0001-4000-8000-000000000001",
+        "metadata": {
+          "created_at": "2026-05-01T10:10:30.000000+00:00",
+          "weight": 1.0
+        }
+      },
+      {
+        "id": "e1000004",
+        "type": "relates_to",
+        "from": "a1b2c3d4-0001-4000-8000-000000000005",
+        "to": "a1b2c3d4-0001-4000-8000-000000000004",
+        "metadata": {
+          "created_at": "2026-05-01T10:15:30.000000+00:00",
+          "weight": 0.8
+        }
+      },
+      {
+        "id": "e1000005",
+        "type": "relates_to",
+        "from": "a1b2c3d4-0001-4000-8000-000000000009",
+        "to": "a1b2c3d4-0001-4000-8000-000000000005",
+        "metadata": {
+          "created_at": "2026-05-01T10:35:30.000000+00:00",
+          "weight": 0.9
+        }
+      },
+      {
+        "id": "e1000006",
+        "type": "relates_to",
+        "from": "a1b2c3d4-0001-4000-8000-000000000007",
+        "to": "a1b2c3d4-0001-4000-8000-000000000002",
+        "metadata": {
+          "created_at": "2026-05-01T10:26:00.000000+00:00",
+          "weight": 0.7
+        }
+      },
+      {
+        "id": "e1000007",
+        "type": "relates_to",
+        "from": "a1b2c3d4-0001-4000-8000-000000000008",
+        "to": "a1b2c3d4-0001-4000-8000-000000000001",
+        "metadata": {
+          "created_at": "2026-05-01T10:30:30.000000+00:00",
+          "weight": 0.8
+        }
+      }
+    ]
+  },
+  "schema": {
+    "node_types": {
+      "decision": {
+        "must_have": ["content", "ts"],
+        "optional": ["label", "confidence", "source", "tags"]
+      },
+      "reason": {
+        "must_have": ["content"],
+        "optional": ["label", "weight", "tags"]
+      },
+      "entity": {
+        "must_have": ["content"],
+        "optional": ["label", "entity_type", "aliases", "tags"]
+      },
+      "fact": {
+        "must_have": ["content"],
+        "optional": ["label", "tags"]
+      },
+      "concept": {
+        "must_have": ["content"],
+        "optional": ["label", "tags"]
+      },
+      "preference": {
+        "must_have": ["content"],
+        "optional": ["label", "tags"]
+      },
+      "question": {
+        "must_have": ["content"],
+        "optional": ["label", "tags"]
+      },
+      "note": {
+        "must_have": ["content"],
+        "optional": ["label", "tags"]
+      },
+      "constraint": {
+        "must_have": ["content"],
+        "optional": ["label", "tags"]
+      },
+      "goal": {
+        "must_have": ["content"],
+        "optional": ["label", "tags"]
+      }
+    },
+    "edge_types": {
+      "depends_on": {
+        "valid_from": ["decision", "goal"],
+        "valid_to": ["reason", "fact", "constraint"]
+      },
+      "contradicts": {
+        "valid_from": ["decision", "fact"],
+        "valid_to": ["decision", "fact"]
+      },
+      "relates_to": {
+        "valid_from": ["fact", "entity", "concept", "preference", "decision", "question", "note", "reason", "constraint", "goal"],
+        "valid_to": ["fact", "entity", "concept", "preference", "decision", "question", "note", "reason", "constraint", "goal"]
+      },
+      "part_of": {
+        "valid_from": ["fact", "entity", "concept", "preference", "decision", "question", "note", "reason", "constraint", "goal"],
+        "valid_to": ["fact", "entity", "concept", "preference", "decision", "question", "note", "reason", "constraint", "goal"]
+      },
+      "updates": {
+        "valid_from": ["fact", "entity", "concept", "preference", "decision", "question", "note", "reason", "constraint", "goal"],
+        "valid_to": ["fact", "entity", "concept", "preference", "decision", "question", "note", "reason", "constraint", "goal"]
+      },
+      "derived_from": {
+        "valid_from": ["fact", "entity", "concept", "preference", "decision", "question", "note", "reason", "constraint", "goal"],
+        "valid_to": ["fact", "entity", "concept", "preference", "decision", "question", "note", "reason", "constraint", "goal"]
+      },
+      "similar_to": {
+        "valid_from": ["fact", "entity", "concept", "preference", "decision", "question", "note", "reason", "constraint", "goal"],
+        "valid_to": ["fact", "entity", "concept", "preference", "decision", "question", "note", "reason", "constraint", "goal"]
+      },
+      "caused_by": {
+        "valid_from": ["fact", "entity", "concept", "preference", "decision", "question", "note", "reason", "constraint", "goal"],
+        "valid_to": ["fact", "entity", "concept", "preference", "decision", "question", "note", "reason", "constraint", "goal"]
+      },
+      "blocks": {
+        "valid_from": ["fact", "entity", "concept", "preference", "decision", "question", "note", "reason", "constraint", "goal"],
+        "valid_to": ["fact", "entity", "concept", "preference", "decision", "question", "note", "reason", "constraint", "goal"]
+      }
+    }
+  },
+  "constraints": [
+    {
+      "rule": "no_self_loop",
+      "description": "No node may have an edge pointing to itself"
+    },
+    {
+      "rule": "edge_type_match",
+      "description": "Edge endpoints must match valid_from/valid_to in schema"
+    },
+    {
+      "rule": "required_fields",
+      "description": "Nodes must have all must_have fields from schema"
+    },
+    {
+      "rule": "unique_content_per_type",
+      "scope": "project",
+      "description": "No two nodes of the same type may have identical content"
+    },
+    {
+      "rule": "max_edges_per_node",
+      "limit": 500,
+      "description": "Prevent runaway linking"
+    },
+    {
+      "rule": "custom",
+      "expression": "IF node.type == 'decision' AND edge.type == 'contradicts' THEN target.type == 'decision'",
+      "description": "Only decisions can contradict other decisions"
+    }
+  ],
+  "ai_rules": {
+    "merge_if_similarity": 0.85,
+    "dedup_scope": "project",
+    "auto_link_patterns": [
+      {
+        "from_type": "decision",
+        "to_type": "reason",
+        "edge_type": "depends_on",
+        "condition": "semantic_similarity > 0.8"
+      },
+      {
+        "from_type": "entity",
+        "to_type": "entity",
+        "edge_type": "relates_to",
+        "condition": "co_occurrence > 3"
+      }
+    ],
+    "inference_hints": [
+      "If a new decision contradicts an existing decision, create a 'contradicts' edge automatically",
+      "If an entity appears in multiple decisions, create 'part_of' edges to a shared context node"
+    ],
+    "extraction_instructions": "When processing conversation, extract: all named entities, all decisions with stated reasons, all preferences, all constraints mentioned by the user, and all explicit corrections or contradictions to prior statements."
+  },
+  "versions": [
+    {
+      "id": "v1",
+      "ts": "2026-05-01T10:00:00.000000+00:00",
+      "author": "waggle-auto",
+      "changes": [
+        {
+          "op": "add_node",
+          "node_id": "a1b2c3d4-0001-4000-8000-000000000001",
+          "snapshot": { "type": "goal", "content": "Build a production-ready REST API for a task management app." }
+        }
+      ],
+      "message": "Initial graph — project goal established"
+    },
+    {
+      "id": "v2",
+      "ts": "2026-05-01T10:05:00.000000+00:00",
+      "author": "waggle-auto",
+      "changes": [
+        {
+          "op": "add_node",
+          "node_id": "a1b2c3d4-0001-4000-8000-000000000002",
+          "snapshot": { "type": "decision", "content": "Use FastAPI as the web framework for the REST API." }
+        },
+        {
+          "op": "add_node",
+          "node_id": "a1b2c3d4-0001-4000-8000-000000000003",
+          "snapshot": { "type": "reason", "content": "FastAPI provides automatic OpenAPI docs, async support, and strong type validation via Pydantic." }
+        },
+        {
+          "op": "add_edge",
+          "edge_id": "e1000001",
+          "snapshot": { "type": "depends_on", "from": "a1b2c3d4-0001-4000-8000-000000000002", "to": "a1b2c3d4-0001-4000-8000-000000000003" }
+        }
+      ],
+      "message": "Framework decision recorded with rationale"
+    },
+    {
+      "id": "v3",
+      "ts": "2026-05-01T10:10:00.000000+00:00",
+      "author": "waggle-auto",
+      "changes": [
+        {
+          "op": "add_node",
+          "node_id": "a1b2c3d4-0001-4000-8000-000000000004",
+          "snapshot": { "type": "decision", "content": "Use PostgreSQL as the primary database." }
+        }
+      ],
+      "message": "Database decision recorded"
+    },
+    {
+      "id": "v4",
+      "ts": "2026-05-01T10:35:00.000000+00:00",
+      "author": "waggle-auto",
+      "changes": [
+        {
+          "op": "add_node",
+          "node_id": "a1b2c3d4-0001-4000-8000-000000000009",
+          "snapshot": { "type": "note", "content": "Consider adding Redis caching for the GET /tasks list endpoint if latency SLA is hard to meet with Postgres alone." }
+        }
+      ],
+      "message": "Caching note added"
+    }
+  ],
+  "ui": {
+    "positions": {
+      "a1b2c3d4-0001-4000-8000-000000000001": { "x": 0,    "y": 0   },
+      "a1b2c3d4-0001-4000-8000-000000000002": { "x": -200, "y": 150 },
+      "a1b2c3d4-0001-4000-8000-000000000003": { "x": -200, "y": 300 },
+      "a1b2c3d4-0001-4000-8000-000000000004": { "x": 200,  "y": 150 },
+      "a1b2c3d4-0001-4000-8000-000000000005": { "x": 200,  "y": 300 },
+      "a1b2c3d4-0001-4000-8000-000000000006": { "x": 0,    "y": 150 },
+      "a1b2c3d4-0001-4000-8000-000000000007": { "x": -400, "y": 150 },
+      "a1b2c3d4-0001-4000-8000-000000000008": { "x": 400,  "y": 150 },
+      "a1b2c3d4-0001-4000-8000-000000000009": { "x": 200,  "y": 450 }
+    },
+    "zoom": 1.0,
+    "viewport": { "center_x": 0, "center_y": 200 },
+    "groups": [
+      {
+        "id": "g1",
+        "label": "Architecture Decisions",
+        "node_ids": [
+          "a1b2c3d4-0001-4000-8000-000000000002",
+          "a1b2c3d4-0001-4000-8000-000000000003",
+          "a1b2c3d4-0001-4000-8000-000000000004"
+        ]
+      }
+    ],
+    "collapsed_groups": [],
+    "selected_nodes": []
+  },
+  "external_refs": [],
+  "chunks": {
+    "chunk_index": {
+      "chunk_1": {
+        "label": "Goals and decisions",
+        "node_ids": [
+          "a1b2c3d4-0001-4000-8000-000000000001",
+          "a1b2c3d4-0001-4000-8000-000000000002",
+          "a1b2c3d4-0001-4000-8000-000000000003",
+          "a1b2c3d4-0001-4000-8000-000000000004"
+        ],
+        "edge_ids": ["e1000001", "e1000002", "e1000003"],
+        "node_types": ["goal", "decision", "reason"],
+        "edge_types": ["depends_on", "part_of"],
+        "content_terms": ["fastapi", "postgresql", "framework", "database", "goal", "api"],
+        "byte_offset": 0,
+        "byte_length": 2048
+      },
+      "chunk_2": {
+        "label": "Constraints, preferences, entities",
+        "node_ids": [
+          "a1b2c3d4-0001-4000-8000-000000000005",
+          "a1b2c3d4-0001-4000-8000-000000000006",
+          "a1b2c3d4-0001-4000-8000-000000000007",
+          "a1b2c3d4-0001-4000-8000-000000000008",
+          "a1b2c3d4-0001-4000-8000-000000000009"
+        ],
+        "edge_ids": ["e1000004", "e1000005", "e1000006", "e1000007"],
+        "node_types": ["constraint", "preference", "entity", "fact", "note"],
+        "edge_types": ["relates_to"],
+        "content_terms": ["latency", "snake_case", "jwt", "task", "redis", "auth"],
+        "byte_offset": 2048,
+        "byte_length": 2048
+      }
+    },
+    "load_strategy": "lazy",
+    "preload": ["chunk_1"]
+  },
+  "queries": {
+    "saved": [
+      {
+        "id": "q1",
+        "name": "Recent changes",
+        "query": "FIND nodes WHERE ts > NOW() - 7d ORDER BY ts DESC"
+      },
+      {
+        "id": "q2",
+        "name": "All decisions",
+        "query": "FIND nodes WHERE type = 'decision' ORDER BY ts ASC"
+      },
+      {
+        "id": "q3",
+        "name": "Contradiction chains",
+        "query": "FIND paths WHERE edge.type='contradicts' DEPTH <= 3"
+      }
+    ],
+    "auto_run_on_open": ["q1"]
+  },
+  "integrity": {
+    "content_hash": "sha256:sample-hash-replace-with-real-computed-value-on-import",
+    "node_count": 9,
+    "edge_count": 7,
+    "last_validated": "2026-05-01T10:35:00.000000+00:00",
+    "schema_version": "6",
+    "abhi_spec_version": "1.0"
+  },
+  "events": {
+    "on_add_node": ["validate_constraints", "auto_link", "update_hash"],
+    "on_add_edge": ["validate_constraints", "check_cycles"],
+    "on_contradiction_detected": ["flag_for_review", "notify"],
+    "on_import": ["validate_schema", "verify_hash", "run_dedup"],
+    "on_export": ["compute_hash", "snapshot_version", "strip_ui_state"],
+    "on_query": ["log_access", "update_relevance_scores"],
+    "on_merge": ["three_way_diff", "resolve_conflicts", "recompute_hash"]
+  },
+  "waggle": {
+    "tenant_id": "local-default",
+    "schema_version": 6,
+    "repos": [
+      {
+        "id": "local-default:task-manager",
+        "tenant_id": "local-default",
+        "name": "task-manager",
+        "description": "Memory graph for the task management API project.",
+        "created_at": "2026-05-01T10:00:00.000000+00:00",
+        "updated_at": "2026-05-01T10:35:00.000000+00:00"
+      }
+    ],
+    "context_windows": [
+      {
+        "id": "local-default:task-manager:session-001",
+        "tenant_id": "local-default",
+        "repo_id": "local-default:task-manager",
+        "session_id": "session-001",
+        "title": "Initial architecture session",
+        "status": "active",
+        "node_count": 9,
+        "embedding_stale": false,
+        "created_at": "2026-05-01T10:00:00.000000+00:00",
+        "updated_at": "2026-05-01T10:35:00.000000+00:00",
+        "closed_at": null
+      }
+    ],
+    "context_window_edges": [],
+    "event_log": [
+      { "event": "on_export", "action": "compute_hash",      "status": "executed" },
+      { "event": "on_export", "action": "snapshot_version",  "status": "executed" },
+      { "event": "on_export", "action": "strip_ui_state",    "status": "skipped"  }
+    ]
+  }
+}
