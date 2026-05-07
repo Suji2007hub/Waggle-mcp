@@ -14,7 +14,6 @@ Skips capture when likely secrets are detected in the turn text.
 from __future__ import annotations
 
 import json
-import os
 import re
 import signal
 import sys
@@ -99,17 +98,19 @@ def main() -> None:
         from waggle.config import AppConfig
         from waggle.embeddings import EmbeddingModel
         from waggle.graph import MemoryGraph
+        from waggle.hooks.claude_code.common import resolve_scope
         from waggle.orchestrator import ConversationTurn, MemoryPolicy, MemoryScope
 
         config = AppConfig.from_env()
         if config.backend != "sqlite":
             _silent_exit()
 
+        scope_data = resolve_scope(payload, config)
         scope = MemoryScope(
-            tenant_id=config.default_tenant_id,
-            project=str(payload.get("project", "") or ""),
-            agent_id=str(payload.get("agent_id", "") or ""),
-            session_id=session_id,
+            tenant_id=scope_data["tenant_id"],
+            project=scope_data["project"],
+            agent_id=scope_data["agent_id"],
+            session_id=scope_data["session_id"],
         )
         plan = MemoryPolicy().plan_ingest(
             ConversationTurn(

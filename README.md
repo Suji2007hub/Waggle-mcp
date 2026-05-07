@@ -457,11 +457,11 @@ For Claude Code, `waggle-mcp setup --yes` installs three hook scripts that captu
 
 | Hook script | Claude Code event | What it does |
 |---|---|---|
-| `pre_response.py` | `UserPromptSubmit` | Calls `prime_context` or `query_graph` and injects relevant memory before Claude responds |
-| `post_response.py` | `Stop` | Calls `observe_conversation` with the last turn after Claude finishes |
-| `pre_compact.py` | `PreCompact` | Calls `ingest_transcript_handoff` to preserve durable info before context compression |
+| `pre_response.py` | `UserPromptSubmit` | Tries scoped DB recall first; if the scope is cold and a session checkpoint exists, imports the `.abhi` checkpoint and retries before Claude responds |
+| `post_response.py` | `Stop` | Applies Waggle's durable-ingest policy and only calls `observe_conversation` for turns worth remembering |
+| `pre_compact.py` | `PreCompact` | Calls `ingest_transcript_handoff` to preserve durable info before context compression, emit a session `.abhi` checkpoint, and refresh the checkpoint manifest |
 
-Each hook always exits 0 (a Waggle bug never blocks your session) and has a 5-second timeout. `post_response.py` scans turn text for likely secrets before storing — if secrets are detected, the turn is skipped silently.
+Each hook always exits 0 (a Waggle bug never blocks your session) and has a 5-second timeout. `post_response.py` scans turn text for likely secrets before storing, skips low-value chatter, and only ingests durable turns.
 
 ```bash
 # Install hooks (included in setup --yes)
@@ -617,11 +617,14 @@ Point multiple clients at the same `WAGGLE_DB_PATH` (default `~/.waggle/memory.d
 ### Session handoffs
 
 ```bash
-# Export a condensed context pack for a new session
-waggle-mcp export-context-bundle --format markdown --output-path ./handoff.md
+# Explicit checkpoint before switching sessions or apps
+waggle-mcp checkpoint-context --project MCP --session-id thread-123 --output ./handoff.abhi
 ```
 
-Paste `handoff.md` into your new session to re-prime the AI.
+Resume order is:
+- same machine / shared `WAGGLE_DB_PATH`: use the live SQLite memory first
+- if that scoped DB recall is empty: import the session `.abhi` checkpoint
+- different machine or explicit transfer: `waggle-mcp pull ./handoff.abhi`
 
 ### Full migration
 

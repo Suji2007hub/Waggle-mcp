@@ -58,22 +58,13 @@ def _is_concrete_task(prompt: str) -> bool:
     return bool(_TASK_PATTERN.search(prompt)) and len(prompt.split()) >= 3
 
 
-def _checkpoint_path(
-    *,
-    config: Any,
-    project: str,
-    session_id: str,
-    explicit_path: str = "",
-) -> Path | None:
-    if explicit_path.strip():
-        return Path(explicit_path).expanduser()
-    if not session_id.strip():
-        return None
-    export_root = Path(config.export_dir).expanduser() if getattr(config, "export_dir", None) else Path(config.db_path).expanduser().parent
-    checkpoint_root = export_root / "checkpoints"
-    scope_parts = [project.strip() or "default-project", session_id.strip() or "default-session"]
-    safe_parts = ["".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in part) for part in scope_parts]
-    return checkpoint_root.joinpath(*safe_parts).with_suffix(".abhi")
+def _has_recursive_signal(result: Any) -> bool:
+    return bool(
+        getattr(result, "nodes_used", None)
+        or getattr(result, "transcript_evidence", None)
+        or getattr(result, "edges_used", None)
+        or getattr(result, "conflicts", None)
+    )
 
 
 def main() -> None:
@@ -89,9 +80,6 @@ def main() -> None:
 
         payload: dict[str, Any] = json.loads(raw)
         prompt: str = payload.get("prompt", "") or ""
-        session_id: str = str(payload.get("session_id", "") or "")
-        project: str = str(payload.get("project", "") or "")
-        agent_id: str = str(payload.get("agent_id", "") or "")
         explicit_checkpoint_path: str = str(payload.get("checkpoint_path", "") or "")
 
         if not prompt.strip():
@@ -101,11 +89,14 @@ def main() -> None:
         from waggle.config import AppConfig
         from waggle.embeddings import EmbeddingModel
         from waggle.graph import MemoryGraph
+        from waggle.hooks.claude_code.common import checkpoint_path, read_checkpoint_manifest, resolve_scope
         from waggle.recursive_context import RecursiveContextController, RECURSIVE_CONTEXT_ENABLED
 
         config = AppConfig.from_env()
         if config.backend != "sqlite":
             _silent_exit()
+
+        scope = resolve_scope(payload, config)
 
         graph = MemoryGraph(
             config.db_path,
@@ -113,10 +104,16 @@ def main() -> None:
             tenant_id=config.default_tenant_id,
         )
 
-        checkpoint_path = _checkpoint_path(
+        restored_checkpoint_path = read_checkpoint_manifest(
             config=config,
-            project=project,
-            session_id=session_id,
+            project=scope["project"],
+            agent_id=scope["agent_id"],
+            session_id=scope["session_id"],
+        )
+        active_checkpoint_path = restored_checkpoint_path or checkpoint_path(
+            config=config,
+            project=scope["project"],
+            session_id=scope["session_id"],
             explicit_path=explicit_checkpoint_path,
         )
         context_text = ""
@@ -128,24 +125,25 @@ def main() -> None:
                     controller = RecursiveContextController(graph=graph)
                     ctx_result = controller.build_context(
                         query=prompt[:500],
-                        project=project,
-                        agent_id=agent_id,
-                        session_id=session_id,
+                        project=scope["project"],
+                        agent_id=scope["agent_id"],
+                        session_id=scope["session_id"],
                         token_budget=800,
                         depth=1,
                         max_subqueries=4,
                         mode="fast",
                     )
-                    local_context_text = ctx_result.context_pack or ""
+                    if _has_recursive_signal(ctx_result):
+                        local_context_text = ctx_result.context_pack or ""
                 except Exception:
                     local_context_text = ""
 
             if not local_context_text:
                 try:
                     result = graph.prime_context(
-                        project=project,
-                        agent_id=agent_id,
-                        session_id=session_id,
+                        project=scope["project"],
+                        agent_id=scope["agent_id"],
+                        session_id=scope["session_id"],
                     )
                     local_context_text = result.summary if result.summary and result.nodes else ""
                 except Exception:
@@ -157,9 +155,9 @@ def main() -> None:
                         query=prompt[:500],
                         max_nodes=8,
                         max_depth=1,
-                        project=project,
-                        agent_id=agent_id,
-                        session_id=session_id,
+                        project=scope["project"],
+                        agent_id=scope["agent_id"],
+                        session_id=scope["session_id"],
                     )
                     if qr.nodes:
                         local_context_text = "\n".join(
@@ -172,10 +170,10 @@ def main() -> None:
 
         context_text = load_from_db(include_query_fallback=False)
 
-        if not context_text and checkpoint_path is not None and checkpoint_path.exists():
+        if not context_text and active_checkpoint_path is not None and active_checkpoint_path.exists():
             try:
                 graph.import_abhi(
-                    input_path=checkpoint_path,
+                    input_path=active_checkpoint_path,
                     merge_strategy="skip-existing",
                 )
                 context_text = load_from_db(include_query_fallback=True)

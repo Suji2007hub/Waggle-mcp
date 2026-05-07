@@ -3917,6 +3917,9 @@ Common workflows
 - Checkpoint the current context before switching sessions/apps:
   waggle-mcp checkpoint-context --project MCP --session-id thread-123 --output ./handoff.abhi
 
+- Resume from a portable checkpoint when scoped DB recall is cold:
+  waggle-mcp pull ./handoff.abhi
+
 - Edit memory as markdown:
   waggle-mcp export-markdown-vault --root-path ./vault
   waggle-mcp import-markdown-vault --root-path ./vault
@@ -4321,11 +4324,11 @@ def _build_parser() -> argparse.ArgumentParser:
 
     ingest_transcript_handoff = subparsers.add_parser(
         "ingest-transcript-handoff",
-        help="Ingest a full session transcript as a rollover handoff, extract memory, and export a context bundle.",
+        help="Ingest a full session transcript as a rollover handoff, extract memory, export a context bundle, and emit a session checkpoint.",
         description=(
             "Client-triggered rollover handoff: pass the full ordered transcript as JSON, "
             "Waggle stores all messages as transcript provenance, extracts durable memory from "
-            "logical user->assistant turns, and exports a session-scoped context bundle. "
+            "logical user->assistant turns, exports a session-scoped context bundle, and emits a session-scoped .abhi checkpoint. "
             "Supported backend: SQLite only in v1. Neo4j support is deferred."
         ),
     )

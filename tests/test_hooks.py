@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import sys
 import tempfile
+import importlib.util
 from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
@@ -47,22 +48,26 @@ def _make_graph(tmp_path: Path):
     return MemoryGraph(str(tmp_path / "hooks-test.db"), FakeEmbeddingModel(), tenant_id="local-default")
 
 
+def _load_hook_module(name: str, filename: str):
+    hook_path = ROOT / "src" / "waggle" / "hooks" / "claude_code" / filename
+    spec = importlib.util.spec_from_file_location(name, hook_path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
 # ── pre_response tests ────────────────────────────────────────────────────────
 
 def test_pre_response_empty_stdin(capsys: pytest.CaptureFixture) -> None:
     """pre_response exits cleanly with empty stdin."""
     hook_path = ROOT / "src" / "waggle" / "hooks" / "claude_code" / "pre_response.py"
     assert hook_path.exists()
-
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("pre_response", hook_path)
-    mod = importlib.util.module_from_spec(spec)
+    mod = _load_hook_module("pre_response", "pre_response.py")
 
     with patch("sys.stdin", StringIO("")), \
          patch("sys.exit") as mock_exit, \
          patch("builtins.print") as mock_print:
         try:
-            spec.loader.exec_module(mod)
             mod.main()
         except SystemExit:
             pass
@@ -73,12 +78,7 @@ def test_pre_response_empty_stdin(capsys: pytest.CaptureFixture) -> None:
 
 def test_pre_response_with_prompt(tmp_path: Path) -> None:
     """pre_response returns JSON output for a valid prompt."""
-    hook_path = ROOT / "src" / "waggle" / "hooks" / "claude_code" / "pre_response.py"
-
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("pre_response", hook_path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = _load_hook_module("pre_response_prompt", "pre_response.py")
 
     payload = json.dumps({"prompt": "What database did we choose?", "session_id": "test-session"})
 
@@ -111,12 +111,7 @@ def test_pre_response_with_prompt(tmp_path: Path) -> None:
 
 def test_pre_response_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
     """pre_response respects the 5-second timeout and exits 0."""
-    hook_path = ROOT / "src" / "waggle" / "hooks" / "claude_code" / "pre_response.py"
-
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("pre_response_timeout", hook_path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = _load_hook_module("pre_response_timeout", "pre_response.py")
 
     payload = json.dumps({"prompt": "test", "session_id": "s1"})
 
@@ -150,12 +145,7 @@ def test_pre_response_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_post_response_skips_secrets(tmp_path: Path) -> None:
     """post_response skips capture when secrets are detected."""
-    hook_path = ROOT / "src" / "waggle" / "hooks" / "claude_code" / "post_response.py"
-
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("post_response", hook_path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = _load_hook_module("post_response_secret", "post_response.py")
 
     # Payload with a fake API key in the user message
     payload = json.dumps({
@@ -196,12 +186,7 @@ def test_post_response_skips_secrets(tmp_path: Path) -> None:
 
 def test_post_response_empty_transcript(tmp_path: Path) -> None:
     """post_response exits cleanly with empty transcript."""
-    hook_path = ROOT / "src" / "waggle" / "hooks" / "claude_code" / "post_response.py"
-
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("post_response_empty", hook_path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = _load_hook_module("post_response_empty", "post_response.py")
 
     payload = json.dumps({"session_id": "s1", "transcript": []})
 
@@ -224,12 +209,7 @@ def test_post_response_empty_transcript(tmp_path: Path) -> None:
 
 def test_post_response_skips_non_durable_turns(tmp_path: Path) -> None:
     """post_response skips long chatter that has no durable memory signal."""
-    hook_path = ROOT / "src" / "waggle" / "hooks" / "claude_code" / "post_response.py"
-
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("post_response_nondurable", hook_path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = _load_hook_module("post_response_nondurable", "post_response.py")
 
     payload = json.dumps({
         "session_id": "s1",
@@ -266,12 +246,7 @@ def test_post_response_skips_non_durable_turns(tmp_path: Path) -> None:
 
 def test_post_response_ingests_durable_turns(tmp_path: Path) -> None:
     """post_response still ingests turns with a durable signal."""
-    hook_path = ROOT / "src" / "waggle" / "hooks" / "claude_code" / "post_response.py"
-
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("post_response_durable", hook_path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = _load_hook_module("post_response_durable", "post_response.py")
 
     payload = json.dumps({
         "session_id": "s1",
@@ -314,17 +289,22 @@ def test_post_response_ingests_durable_turns(tmp_path: Path) -> None:
 
 def test_pre_response_restores_checkpoint_when_db_scope_is_empty(tmp_path: Path) -> None:
     """pre_response falls back to a session checkpoint only after scoped DB recall is empty."""
-    hook_path = ROOT / "src" / "waggle" / "hooks" / "claude_code" / "pre_response.py"
-
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("pre_response_restore", hook_path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = _load_hook_module("pre_response_restore", "pre_response.py")
 
     export_root = tmp_path / "exports"
     checkpoint_path = export_root / "checkpoints" / "MCP" / "s1.abhi"
     checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
     checkpoint_path.write_text("checkpoint")
+    (export_root / "checkpoints" / "manifest.json").write_text(
+        json.dumps(
+            {
+                "project": "MCP",
+                "agent_id": "codex",
+                "session_id": "s1",
+                "checkpoint_path": str(checkpoint_path),
+            }
+        )
+    )
 
     payload = json.dumps({
         "prompt": "session memory bootstrap",
@@ -371,12 +351,7 @@ def test_pre_response_restores_checkpoint_when_db_scope_is_empty(tmp_path: Path)
 
 def test_pre_compact_writes_session_checkpoint_stem(tmp_path: Path) -> None:
     """pre_compact routes transcript handoff through the new scoped checkpoint path."""
-    hook_path = ROOT / "src" / "waggle" / "hooks" / "claude_code" / "pre_compact.py"
-
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("pre_compact_checkpoint", hook_path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = _load_hook_module("pre_compact_checkpoint", "pre_compact.py")
 
     export_root = tmp_path / "exports"
     payload = json.dumps({
@@ -397,7 +372,10 @@ def test_pre_compact_writes_session_checkpoint_stem(tmp_path: Path) -> None:
     with patch("sys.stdin", StringIO(payload)), \
          patch("builtins.print", side_effect=fake_print), \
          patch("sys.exit", side_effect=SystemExit), \
-         patch("waggle.graph.MemoryGraph.ingest_transcript_handoff") as ingest_mock, \
+         patch(
+             "waggle.graph.MemoryGraph.ingest_transcript_handoff",
+             return_value=SimpleNamespace(checkpoint_path=str(export_root / "checkpoints" / "MCP" / "s1.abhi")),
+         ) as ingest_mock, \
          patch.dict("os.environ", {
              "WAGGLE_DB_PATH": str(tmp_path / "hooks-test.db"),
              "WAGGLE_MODEL": "deterministic",
@@ -417,8 +395,120 @@ def test_pre_compact_writes_session_checkpoint_stem(tmp_path: Path) -> None:
     assert payload_model.agent_id == "codex"
     assert payload_model.session_id == "s1"
     assert kwargs["output_path"] == str(export_root / "checkpoints" / "MCP" / "s1")
+    manifest = json.loads((export_root / "checkpoints" / "manifest.json").read_text())
+    assert manifest["project"] == "MCP"
+    assert manifest["agent_id"] == "codex"
+    assert manifest["session_id"] == "s1"
+    assert manifest["checkpoint_path"].endswith("s1.abhi")
     if output_lines:
         assert json.loads(output_lines[-1]) == {}
+
+
+def test_hook_handoff_round_trip_restores_context_in_fresh_db(tmp_path: Path) -> None:
+    """A durable turn survives pre-compact handoff and is recalled in a fresh DB."""
+    pre_compact = _load_hook_module("pre_compact_roundtrip", "pre_compact.py")
+    pre_response = _load_hook_module("pre_response_roundtrip", "pre_response.py")
+    post_response = _load_hook_module("post_response_roundtrip", "post_response.py")
+    export_root = tmp_path / "exports"
+    source_db = tmp_path / "source.db"
+    target_db = tmp_path / "target.db"
+
+    transcript_payload = json.dumps(
+        {
+            "session_id": "handoff-session",
+            "project": "MCP",
+            "agent_id": "codex",
+            "transcript": [
+                {"role": "user", "content": "We decided to use Redis for caching."},
+                {"role": "assistant", "content": "Understood. I will remember the Redis caching decision."},
+            ],
+        }
+    )
+
+    with patch("sys.stdin", StringIO(transcript_payload)), \
+         patch("builtins.print"), \
+         patch("sys.exit", side_effect=SystemExit), \
+         patch.dict("os.environ", {
+             "WAGGLE_DB_PATH": str(source_db),
+             "WAGGLE_MODEL": "deterministic",
+             "WAGGLE_BACKEND": "sqlite",
+             "WAGGLE_DEFAULT_TENANT_ID": "local-default",
+             "WAGGLE_EXPORT_DIR": str(export_root),
+         }):
+        try:
+            post_response.main()
+        except SystemExit:
+            pass
+
+    with patch("sys.stdin", StringIO(transcript_payload)), \
+         patch("builtins.print"), \
+         patch("sys.exit", side_effect=SystemExit), \
+         patch.dict("os.environ", {
+             "WAGGLE_DB_PATH": str(source_db),
+             "WAGGLE_MODEL": "deterministic",
+             "WAGGLE_BACKEND": "sqlite",
+             "WAGGLE_DEFAULT_TENANT_ID": "local-default",
+             "WAGGLE_EXPORT_DIR": str(export_root),
+         }):
+        try:
+            pre_compact.main()
+        except SystemExit:
+            pass
+
+    checkpoint_path = export_root / "checkpoints" / "MCP" / "handoff-session.abhi"
+    manifest_path = export_root / "checkpoints" / "manifest.json"
+    assert checkpoint_path.exists()
+    assert manifest_path.exists()
+    manifest = json.loads(manifest_path.read_text())
+    assert manifest["checkpoint_path"] == str(checkpoint_path)
+
+    prompt_payload = json.dumps(
+        {
+            "prompt": "What did we decide about caching?",
+            "session_id": "handoff-session",
+            "project": "MCP",
+            "agent_id": "codex",
+        }
+    )
+    output_lines: list[str] = []
+
+    def fake_print(data: str = "", **kw: object) -> None:
+        output_lines.append(str(data))
+
+    with patch("sys.stdin", StringIO(prompt_payload)), \
+         patch("builtins.print", side_effect=fake_print), \
+         patch("sys.exit", side_effect=SystemExit), \
+         patch.dict("os.environ", {
+             "WAGGLE_DB_PATH": str(target_db),
+             "WAGGLE_MODEL": "deterministic",
+             "WAGGLE_BACKEND": "sqlite",
+             "WAGGLE_DEFAULT_TENANT_ID": "local-default",
+             "WAGGLE_EXPORT_DIR": str(export_root),
+         }):
+        try:
+            pre_response.main()
+        except SystemExit:
+            pass
+
+    assert output_lines
+    response_payload = json.loads(output_lines[-1])
+    assert response_payload["type"] == "system_reminder"
+    assert "waggle memory context" in response_payload["content"].lower()
+
+    from waggle.embeddings import EmbeddingModel
+    from waggle.graph import MemoryGraph
+
+    restored_graph = MemoryGraph(str(target_db), EmbeddingModel("deterministic"), tenant_id="local-default")
+    restored = restored_graph.query(
+        query="redis caching",
+        project="MCP",
+        agent_id="codex",
+        session_id="handoff-session",
+        max_nodes=5,
+        max_depth=1,
+    )
+    assert restored.nodes
+    assert any("redis" in node.content.lower() for node in restored.nodes)
 
 
 # ── setup hooks tests ─────────────────────────────────────────────────────────

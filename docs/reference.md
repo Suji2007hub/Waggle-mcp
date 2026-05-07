@@ -564,6 +564,11 @@ waggle-mcp ingest-transcript-handoff \
   --output-path ./handoff-bundle
 ```
 
+This command now does three things for rollover:
+- ingests the transcript into the live SQLite DB
+- exports the requested Markdown/JSON handoff bundle
+- emits a session-scoped `.abhi` checkpoint and refreshes the local checkpoint manifest
+
 ### Flags
 
 | Flag | Default | Description |
