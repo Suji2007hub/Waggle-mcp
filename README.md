@@ -25,6 +25,16 @@
 
 This repository is the public Waggle product repo: Apache-2.0 licensed, available on GitHub and PyPI, and focused on the local-first memory engine.
 
+## Tech Stack
+
+- Python 3.11+ package built with `pyproject.toml`
+- MCP server exposed through `waggle-mcp`
+- SQLite graph storage by default, with an optional Neo4j backend
+- Local sentence-transformers embeddings with a deterministic offline fallback
+- Ruff, mypy, and pytest for linting, type checks, formatting, and tests
+- GitHub Actions for pull request CI/CD checks
+- Vite/React assets for the bundled Graph Studio UI under `apps/mcp/graph-ui/`
+
 ---
 
 ## Quick Start
@@ -45,6 +55,25 @@ waggle-mcp doctor
 `setup --yes` detects Claude Code, Codex, Cursor, Gemini CLI, and Antigravity, writes the MCP config, and installs automatic memory hooks where supported. Restart your client and you're live.
 
 > **Windows users:** Run all commands with `python -X utf8` or set `PYTHONUTF8=1` to avoid `UnicodeEncodeError` from emoji in log output.
+
+## Local Development Setup
+
+These steps are intended to work on a clean macOS, Linux, or Windows checkout with Python 3.11+ and Git installed:
+
+```bash
+git clone https://github.com/Abhigyan-Shekhar/Waggle-mcp.git
+cd Waggle-mcp
+python -m venv .venv
+source .venv/bin/activate      # macOS/Linux
+# .venv\Scripts\activate       # Windows PowerShell
+python -m pip install --upgrade pip
+pip install -e ".[dev]"
+WAGGLE_MODEL=deterministic pytest -q
+ruff check src/ tests/
+ruff format --check src/ tests/
+```
+
+Use `WAGGLE_MODEL=deterministic` for local verification so setup does not require downloading the embedding model.
 
 ## Install Waggle
 
@@ -110,6 +139,7 @@ For self-hosted production review and security posture:
 - [Repository map](./docs/repository-map.md)
 - [Starter issues](./docs/good-first-issues.md)
 - [Label catalog](./.github/labels.yml)
+- Contact channel: open a GitHub issue for bugs, feature proposals, and contributor assignment requests. Use `SECURITY.md` for vulnerability reports.
 
 Contributor layout note:
 - The repo root is reserved for packaging, deployment entrypoints, and external registry manifests. Contributor-facing docs, examples, and utilities should live under `docs/`, `examples/`, `scripts/`, or `deploy/`.
@@ -177,16 +207,42 @@ Research artifacts, benchmark harnesses, evaluation reports, and paper material 
 
 ## Architecture
 
-```
-MCP Client (Claude / Codex / Gemini CLI / Cursor / Antigravity / ChatGPT)
-    ↓
-waggle.server  — MCP tool surface
-    ↓
-RecursiveContextController  — RLM-inspired context assembly (build_context)
-    ↓
-Graph Engine  — MemoryGraph (SQLite) or Neo4jMemoryGraph
-    ↓
-Embeddings  — sentence-transformers (local) or deterministic fallback
+```mermaid
+flowchart TD
+    U["User / Developer"] --> C["MCP Client<br/>Claude, Codex, Cursor, Gemini CLI, Antigravity, ChatGPT"]
+    C --> S["waggle.server<br/>MCP tool surface"]
+
+    S --> P["Automatic memory policy<br/>prime_context before sessions<br/>query_graph before contextual answers<br/>observe_conversation after durable turns"]
+
+    P --> R["RecursiveContextController<br/>token-budgeted context assembly"]
+    R --> HR["Hybrid retrieval<br/>graph + verbatim transcript + recency"]
+    HR --> GE["Graph engine"]
+
+    GE --> SQ["MemoryGraph<br/>SQLite local-first store"]
+    GE --> N4J["Neo4jMemoryGraph<br/>remote / HTTPS deployment option"]
+
+    SQ --> DM["Graph data model<br/>typed nodes + typed edges"]
+    N4J --> DM
+
+    DM --> NT["Nodes<br/>fact, entity, concept,<br/>preference, decision, question, note"]
+    DM --> ET["Edges<br/>updates, contradicts, depends_on,<br/>derived_from, relates_to, similar_to"]
+
+    P --> ING["Ingestion pipeline"]
+    ING --> VT["Verbatim transcript stored first"]
+    VT --> EX["Memory extraction"]
+    EX --> INF["Edge inference + evidence records"]
+    INF --> DM
+
+    R --> PACK["Compact context pack<br/>ranked subgraph + provenance<br/>conflicts + update chains"]
+
+    DM --> CW["Context windows<br/>session-level memory containers"]
+    CW --> XW["Cross-window edges<br/>handoff, overlap, temporal continuity"]
+
+    DM --> ABHI[".abhi portable memory artifact"]
+    ABHI --> OPS["commit / pull / diff / merge / fsck / show"]
+    ABHI --> HANDOFF["checkpoint handoff<br/>between sessions or machines"]
+
+    S --> GS["Graph Studio / debug tools<br/>retrieval debugger, graph viz,<br/>conflict review, provenance inspection"]
 ```
 
 ---

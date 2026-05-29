@@ -203,14 +203,26 @@ The offline-safe embedding mode. Uses SHA-256 hashing to produce a 256-dim float
 1. **Open an issue first** for bugs, doc gaps, or feature proposals — especially larger changes.
 2. **Fork and branch** from `main`. Use a descriptive branch name like `fix/dockerfile-version` or `feat/dry-run-import`.
 3. **Keep PRs focused.** One logical change per PR makes review faster.
-4. **Write a clear description.** Explain *what* changed and *why*, not just *how*.
+4. **Write a clear description.** Explain *what* changed, *why* it was needed, and how you verified it. Link the issue with `Fixes #123` or explain why no issue is needed.
 5. **Run tests before pushing:**
    ```bash
    WAGGLE_MODEL=deterministic pytest -q
    ruff check src/ tests/
+   ruff format --check src/ tests/
    ```
 6. **Benchmark changes:** If your PR affects retrieval quality or token efficiency, include updated artifact links under `tests/artifacts/`.
 7. **Open the PR** — CI will run automatically and the maintainer will review.
+
+### Pull Request Format
+
+Use the repository PR template and keep these sections complete:
+
+- Summary: concise bullets describing the user-visible or maintainer-visible change.
+- Testing: exact commands run, or a clear reason when a check was not run.
+- Checklist: issue link, docs impact, focused scope, and confirmation that no secrets or generated noise were committed.
+- Implementation notes: for non-trivial code, include a short walkthrough of the approach so reviewers can tell that you understand the change.
+
+Maintainers may ask you to explain your implementation before approval. PRs that cannot be explained by the contributor will not be merged.
 
 ### Commit Message Style
 
@@ -229,3 +241,12 @@ feat(cli): add --dry-run flag to import and pull commands
 ci: add test workflow for Python 3.11-3.13
 docs: expand CONTRIBUTING with architecture overview
 ```
+
+### Review Timeline and Maintainer Standards
+
+- Assignment requests should receive a maintainer response within 24 hours during program periods.
+- Pull requests are normally reviewed within 2-3 business days, with inline comments for specific code concerns.
+- The default branch must stay protected: direct pushes are not allowed, required CI checks must pass, and at least one reviewer other than the author must approve before merge.
+- Maintainers should not merge their own pull requests without another reviewer.
+- Every accepted program PR should receive one difficulty label such as `level:beginner`, one type label such as `type:docs`, and a validation label such as `gssoc:approved` when applicable.
+- Do not merge changes containing credentials, private exports, personal data, local machine paths, or unrelated generated files.

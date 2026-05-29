@@ -34,7 +34,7 @@ jobs:
 
   # ── Tests ─────────────────────────────────────────────────────────────────
   test:
-    name: Test (Python ${{ matrix.python-version }})
+    name: Test (Python ${{ matrix.python-version }}, ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -58,12 +58,19 @@ jobs:
       - name: Install project + dev dependencies
         run: pip install -e ".[dev]"
 
+      - name: Verify critical dependencies
+        run: |
+          pip list
+          python -c "import networkx; print('networkx OK')"
+          python -c "import pytest; print('pytest OK')"
+          python -c "import waggle; print('waggle OK')"
+
       # Use deterministic embeddings so tests never require a 420 MB download
       - name: Run tests (deterministic mode, no ML)
         env:
           WAGGLE_MODEL: deterministic
           PYTHONUTF8: "1"   # prevents UnicodeEncodeError on Windows
-        run: pytest -q --tb=short -x
+        run: pytest -v --tb=long
 
   # ── Packaging smoke-test ───────────────────────────────────────────────────
   package:

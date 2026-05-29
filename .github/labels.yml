@@ -13,6 +13,9 @@
 - name: enhancement
   color: "a2eeef"
   description: New feature or meaningful product improvement.
+- name: feature
+  color: "a2eeef"
+  description: New user-facing functionality or product capability.
 - name: testing
   color: "bfd4f2"
   description: Test coverage, fixtures, or CI-related work.
@@ -46,3 +49,66 @@
 - name: blocked
   color: "000000"
   description: Work cannot proceed until an external dependency or decision lands.
+- name: level:beginner
+  color: "eef2ff"
+  description: Beginner difficulty for scoring and contributor routing.
+- name: level:intermediate
+  color: "e0f2fe"
+  description: Intermediate difficulty for scoring and contributor routing.
+- name: level:advanced
+  color: "fef3c7"
+  description: Advanced difficulty for scoring and contributor routing.
+- name: level:critical
+  color: "fee2e2"
+  description: Critical difficulty or high-impact work for scoring.
+- name: quality:clean
+  color: "ccfbf1"
+  description: Clean implementation quality multiplier for accepted PRs.
+- name: quality:exceptional
+  color: "99f6e4"
+  description: Exceptional implementation quality multiplier for accepted PRs.
+- name: type:docs
+  color: "dbeafe"
+  description: Documentation contribution scoring type.
+- name: type:testing
+  color: "e0e7ff"
+  description: Test contribution scoring type.
+- name: type:accessibility
+  color: "f0fdf4"
+  description: Accessibility contribution scoring type.
+- name: type:performance
+  color: "dcfce7"
+  description: Performance contribution scoring type.
+- name: type:security
+  color: "fee2e2"
+  description: Security contribution scoring type.
+- name: type:design
+  color: "fce7f3"
+  description: Design or UX contribution scoring type.
+- name: type:refactor
+  color: "f5f5f4"
+  description: Refactor contribution scoring type.
+- name: type:devops
+  color: "ede9fe"
+  description: DevOps or CI/CD contribution scoring type.
+- name: type:bug
+  color: "fecaca"
+  description: Bug fix contribution scoring type.
+- name: type:feature
+  color: "cffafe"
+  description: Feature contribution scoring type.
+- name: gssoc:approved
+  color: "99f6e4"
+  description: Admin validation label for approved program PRs.
+- name: gssoc:invalid
+  color: "fecaca"
+  description: Admin validation label for invalid program PRs.
+- name: gssoc:spam
+  color: "fecaca"
+  description: Admin validation label for spam program PRs.
+- name: gssoc:ai-slop
+  color: "fecaca"
+  description: Admin validation label for low-effort AI-generated PRs.
+- name: mentor:username
+  color: "ffedd5"
+  description: Replace username with a mentor handle when crediting reviewed PRs.

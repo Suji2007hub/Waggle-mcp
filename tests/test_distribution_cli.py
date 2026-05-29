@@ -60,6 +60,7 @@ def test_json_client_writers_use_packaged_stdio_command(
     relative_path: str,
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
     monkeypatch.setattr("waggle.server.sys.platform", "linux")
 
     config_path = writer(str(tmp_path / "memory.db"), "/tmp/fake-python")

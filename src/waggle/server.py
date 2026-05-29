@@ -5464,6 +5464,9 @@ def _write_codex(db_path: str, python_exe: str) -> Path:
     config_dir = Path.home() / ".codex"
     config_dir.mkdir(parents=True, exist_ok=True)
     config_file = config_dir / "config.toml"
+    # Escape backslashes in Windows paths for TOML (and regex replacement)
+    db_path_escaped = db_path.replace("\\", "\\\\")
+
     toml_block = (
         "[mcp_servers.waggle]\n"
         f'command = "{_default_stdio_command()}"\n'
@@ -5471,7 +5474,7 @@ def _write_codex(db_path: str, python_exe: str) -> Path:
         "\n"
         "[mcp_servers.waggle.env]\n"
         'WAGGLE_BACKEND = "sqlite"\n'
-        f'WAGGLE_DB_PATH = "{db_path}"\n'
+        f'WAGGLE_DB_PATH = "{db_path_escaped}"\n'
         'WAGGLE_DEFAULT_TENANT_ID = "local-default"\n'
         'WAGGLE_MODEL = "all-MiniLM-L6-v2"\n'
     )
