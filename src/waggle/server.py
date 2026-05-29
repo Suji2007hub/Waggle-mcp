@@ -4475,6 +4475,9 @@ def _build_parser() -> argparse.ArgumentParser:
     doctor.add_argument(
         "--fix", action="store_true", help="Re-embed stale transcript/node rows to the current model ID."
     )
+    doctor.add_argument(
+        "--json", dest="as_json", action="store_true", help="Output doctor results in structured JSON format."
+    )
 
     demo_cmd = subparsers.add_parser(
         "demo",
@@ -4949,7 +4952,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
         print(_FEATURES_GUIDE)
         return 0
     if args.command == "doctor":
-        return _run_doctor(config, fix=bool(getattr(args, "fix", False)))
+        return _run_doctor(config, fix=bool(getattr(args, "fix", False)), as_json=bool(getattr(args, "as_json", False)))
     raise ValidationFailure(f"Unknown command: {args.command}")
 
 
@@ -4989,22 +4992,28 @@ Known API gotchas (from the Waggle field error log):
 """
 
 
-def _run_doctor(config: AppConfig, *, fix: bool = False) -> int:
+def _run_doctor(config: AppConfig, *, fix: bool = False, as_json: bool = False) -> int:
     """waggle-mcp doctor — surface configuration and environment issues."""
     issues: list[str] = []
     ok_items: list[str] = []
 
-    print()
-    print(_c(_BOLD, "waggle-mcp doctor"))
-    print(_c(_CYAN, "─" * 50))
+    if not as_json:
+        print()
+        print(_c(_BOLD, "waggle-mcp doctor"))
+        print(_c(_CYAN, "─" * 50))
 
     # ── 1. Config file locations ─────────────────────────────────────────────
-    print(_c(_BOLD, "\n[1] MCP client config files"))
+    if not as_json:
+        print(_c(_BOLD, "\n[1] MCP client config files"))
     waggle_found_in: list[str] = []
+    config_files_data = []
     for label, template in _KNOWN_CONFIG_PATHS:
         raw = template.replace("%APPDATA%", os.environ.get("APPDATA", "")).replace("%USERPROFILE%", str(Path.home()))
         path = Path(raw).expanduser()
-        if path.exists():
+        exists = path.exists()
+        has_waggle = False
+        parsed = False
+        if exists:
             try:
                 raw_text = path.read_text(encoding="utf-8", errors="replace")
                 if path.suffix == ".toml":
@@ -5013,13 +5022,17 @@ def _run_doctor(config: AppConfig, *, fix: bool = False) -> int:
                     data = json.loads(raw_text)
                     servers = data.get("mcpServers", data.get("tools", {}) if isinstance(data, dict) else {})
                     has_waggle = isinstance(servers, dict) and "waggle" in servers
+                parsed = True
                 if has_waggle:
                     waggle_found_in.append(label)
-                    _ok(f"{label}\n     {path}  [waggle entry found]")
+                    if not as_json:
+                        _ok(f"{label}\n     {path}  [waggle entry found]")
                 else:
-                    print(f"  {_c(_CYAN, chr(0x2022))} {label}\n     {path}  [exists, no waggle entry]")
+                    if not as_json:
+                        print(f"  {_c(_CYAN, chr(0x2022))} {label}\n     {path}  [exists, no waggle entry]")
             except Exception:
-                print(f"  {_c(_CYAN, chr(0x2022))} {label}\n     {path}  [exists, could not parse]")
+                if not as_json:
+                    print(f"  {_c(_CYAN, chr(0x2022))} {label}\n     {path}  [exists, could not parse]")
         # only show missing paths that are plausible for this platform
         elif (
             (
@@ -5029,7 +5042,23 @@ def _run_doctor(config: AppConfig, *, fix: bool = False) -> int:
             or (sys.platform == "win32" and "Windows" in label)
             or (sys.platform.startswith("linux") and ("Linux" in label or "Cursor" in label))
         ):
-            print(f"  {_c(_CYAN, chr(0x2022))} {label}\n     {path}  [not found]")
+            if not as_json:
+                print(f"  {_c(_CYAN, chr(0x2022))} {label}\n     {path}  [not found]")
+
+        is_plausible = (
+            exists or
+            (sys.platform == "darwin" and ("macOS" in label or "Cursor" in label or "Antigravity" in label or "Codex" in label)) or
+            (sys.platform == "win32" and "Windows" in label) or
+            (sys.platform.startswith("linux") and ("Linux" in label or "Cursor" in label))
+        )
+        if exists or is_plausible:
+            config_files_data.append({
+                "label": label,
+                "path": str(path),
+                "exists": exists,
+                "has_waggle": has_waggle,
+                "parsed": parsed
+            })
 
     if not waggle_found_in:
         issues.append(
@@ -5040,21 +5069,28 @@ def _run_doctor(config: AppConfig, *, fix: bool = False) -> int:
         ok_items.append(f"Waggle found in: {', '.join(waggle_found_in)}")
 
     # ── 2. DB path ───────────────────────────────────────────────────────────
-    print(_c(_BOLD, "\n[2] Database path"))
+    if not as_json:
+        print(_c(_BOLD, "\n[2] Database path"))
     db_path = Path(config.db_path)
     db_dir = db_path.parent
-    if db_path.exists():
-        _ok(f"DB file exists: {db_path}")
+    db_exists = db_path.exists()
+    db_dir_exists = db_dir.exists()
+    if db_exists:
+        if not as_json:
+            _ok(f"DB file exists: {db_path}")
         ok_items.append("DB file found")
-    elif db_dir.exists():
-        _ok(f"DB directory exists (file will be created on first run): {db_path}")
+    elif db_dir_exists:
+        if not as_json:
+            _ok(f"DB directory exists (file will be created on first run): {db_path}")
         ok_items.append("DB directory writable")
     else:
         issues.append(f"DB directory does not exist: {db_dir}. Create it with: mkdir -p <dir>")
-        _fail(f"DB directory missing: {db_dir}")
+        if not as_json:
+            _fail(f"DB directory missing: {db_dir}")
 
     # ── 3. Embedding model ───────────────────────────────────────────────────
-    print(_c(_BOLD, "\n[3] Embedding model"))
+    if not as_json:
+        print(_c(_BOLD, "\n[3] Embedding model"))
     model_name = config.model_name
     hf_home = (
         os.environ.get("HF_HOME")
@@ -5063,8 +5099,11 @@ def _run_doctor(config: AppConfig, *, fix: bool = False) -> int:
     )
     st_cache = Path(os.environ.get("SENTENCE_TRANSFORMERS_HOME", Path(hf_home) / "hub"))
 
-    if model_name.strip().lower() in {"fake", "fake-model", "deterministic", "offline-demo"}:
-        _ok(f"Model: {model_name!r}  (deterministic — no download, always offline-safe)")
+    is_deterministic = model_name.strip().lower() in {"fake", "fake-model", "deterministic", "offline-demo"}
+    is_cached = False
+    if is_deterministic:
+        if not as_json:
+            _ok(f"Model: {model_name!r}  (deterministic — no download, always offline-safe)")
         ok_items.append("Deterministic model — no download needed")
     else:
         # Heuristic: look for a cached sentence-transformers directory
@@ -5074,88 +5113,160 @@ def _run_doctor(config: AppConfig, *, fix: bool = False) -> int:
             st_cache / safe_name,
             Path(hf_home) / "hub" / f"models--{safe_name.replace('_', '--', 1)}",
         ]
-        cached = any(p.exists() for p in possible_dirs)
-        if cached:
-            _ok(f"Model: {model_name!r}  (cached locally — fast startup)")
+        is_cached = any(p.exists() for p in possible_dirs)
+        if is_cached:
+            if not as_json:
+                _ok(f"Model: {model_name!r}  (cached locally — fast startup)")
             ok_items.append("Embedding model cached")
         else:
-            print(
-                f"  {_c(_CYAN, chr(0x2139))} Model: {model_name!r}  — NOT found in local cache.\n"
-                f"    First store_node/query_graph call will download ~420 MB from HuggingFace.\n"
-                f"    To avoid: set WAGGLE_MODEL=deterministic, or pre-download with:\n"
-                f"      python -c \"from sentence_transformers import SentenceTransformer; SentenceTransformer('{model_name}')\""
-            )
+            if not as_json:
+                print(
+                    f"  {_c(_CYAN, chr(0x2139))} Model: {model_name!r}  — NOT found in local cache.\n"
+                    f"    First store_node/query_graph call will download ~420 MB from HuggingFace.\n"
+                    f"    To avoid: set WAGGLE_MODEL=deterministic, or pre-download with:\n"
+                    f"      python -c \"from sentence_transformers import SentenceTransformer; SentenceTransformer('{model_name}')\""
+                )
             issues.append(
                 f"Embedding model '{model_name}' not found in cache. "
                 "First semantic call will block for a network download. "
                 "Set WAGGLE_MODEL=deterministic for offline-safe mode."
             )
 
+    embedding_model_data = {
+        "model_name": model_name,
+        "cached": is_cached,
+        "deterministic": is_deterministic
+    }
+
     # ── 4. WAGGLE_STARTUP_MODE ───────────────────────────────────────────────
-    print(_c(_BOLD, "\n[4] Embedding store"))
+    if not as_json:
+        print(_c(_BOLD, "\n[4] Embedding store"))
     graph = _default_graph(config)
+    embedding_store_data = None
     if isinstance(graph, MemoryGraph):
         store_health = graph.get_embedding_store_health()
         if fix and (store_health["transcript_stale_rows"] or store_health["node_stale_rows"]):
             repair = graph.reembed_stale_embeddings(batch_size=100)
-            _ok(
-                "Re-embedded stale rows: "
-                f"{repair['transcript_rows_updated']} transcript rows, {repair['node_rows_updated']} node rows."
-            )
+            if not as_json:
+                _ok(
+                    "Re-embedded stale rows: "
+                    f"{repair['transcript_rows_updated']} transcript rows, {repair['node_rows_updated']} node rows."
+                )
             store_health = graph.get_embedding_store_health()
         transcript_models = store_health["transcript_model_counts"]
         node_models = store_health["node_model_counts"]
-        print(f"  Current model id: {store_health['current_model_id']}")
-        print(f"  Transcript model ids: {transcript_models or '{}'}")
-        print(f"  Node model ids: {node_models or '{}'}")
-        print(f"  Stale transcript rows: {store_health['transcript_stale_rows']}")
-        print(f"  Stale node rows: {store_health['node_stale_rows']}")
+        if not as_json:
+            print(f"  Current model id: {store_health['current_model_id']}")
+            print(f"  Transcript model ids: {transcript_models or '{}'}")
+            print(f"  Node model ids: {node_models or '{}'}")
+            print(f"  Stale transcript rows: {store_health['transcript_stale_rows']}")
+            print(f"  Stale node rows: {store_health['node_stale_rows']}")
         if store_health["mixed_models"]:
             issues.append("Mixed embedding_model_id values detected in the store.")
-            _fail("Mixed embedding model IDs detected across transcript_records/nodes.")
+            if not as_json:
+                _fail("Mixed embedding model IDs detected across transcript_records/nodes.")
         else:
-            _ok("Store model IDs are consistent.")
+            if not as_json:
+                _ok("Store model IDs are consistent.")
+
+        embedding_store_data = {
+            "current_model_id": store_health["current_model_id"],
+            "transcript_model_counts": transcript_models,
+            "node_model_counts": node_models,
+            "transcript_stale_rows": store_health["transcript_stale_rows"],
+            "node_stale_rows": store_health["node_stale_rows"],
+            "mixed_models": store_health["mixed_models"]
+        }
 
     # ── 5. WAGGLE_STARTUP_MODE ───────────────────────────────────────────────
-    print(_c(_BOLD, "\n[5] Startup mode"))
-    print(f"  WAGGLE_STARTUP_MODE = {config.startup_mode!r}")
+    if not as_json:
+        print(_c(_BOLD, "\n[5] Startup mode"))
+        print(f"  WAGGLE_STARTUP_MODE = {config.startup_mode!r}")
     if config.is_fast_mode:
-        _ok("fast mode: zero ML overhead. Schema/tool listing only. Semantic tools return 'unavailable'.")
+        if not as_json:
+            _ok("fast mode: zero ML overhead. Schema/tool listing only. Semantic tools return 'unavailable'.")
     elif config.is_strict_mode:
-        _ok("strict mode: server blocks on startup until embedding model is ready.")
+        if not as_json:
+            _ok("strict mode: server blocks on startup until embedding model is ready.")
     else:
-        _ok("normal mode: embedding loads in background. First semantic call may wait up to ~30 s.")
+        if not as_json:
+            _ok("normal mode: embedding loads in background. First semantic call may wait up to ~30 s.")
 
     # ── 6. Windows stdout encoding ───────────────────────────────────────────
+    stdout_encoding_data = None
     if sys.platform == "win32":
-        print(_c(_BOLD, "\n[6] Windows stdout encoding"))
+        if not as_json:
+            print(_c(_BOLD, "\n[6] Windows stdout encoding"))
         enc = getattr(sys.stdout, "encoding", "unknown")
-        if enc.lower().replace("-", "") in ("utf8", "utf8"):
-            _ok(f"stdout encoding: {enc}")
+        is_utf8 = enc.lower().replace("-", "") in ("utf8", "utf8")
+        if is_utf8:
+            if not as_json:
+                _ok(f"stdout encoding: {enc}")
         else:
-            _fail(
-                f"stdout encoding is {enc!r} (not UTF-8). "
-                "Unicode characters (emoji, accented text) will cause UnicodeEncodeError.\n"
-                "    Fix: run with 'python -X utf8' or add at script top:\n"
-                "      import sys; sys.stdout.reconfigure(encoding='utf-8')"
-            )
+            if not as_json:
+                _fail(
+                    f"stdout encoding is {enc!r} (not UTF-8). "
+                    "Unicode characters (emoji, accented text) will cause UnicodeEncodeError.\n"
+                    "    Fix: run with 'python -X utf8' or add at script top:\n"
+                    "      import sys; sys.stdout.reconfigure(encoding='utf-8')"
+                )
             issues.append(f"Windows stdout encoding is {enc!r} — set PYTHONUTF8=1 or use python -X utf8.")
+        stdout_encoding_data = {
+            "encoding": enc,
+            "is_utf8": is_utf8
+        }
 
     # ── 7. Known gotchas ─────────────────────────────────────────────────────
-    print(_c(_BOLD, "\n[7] Known API gotchas"))
-    print(_DOCTOR_KNOWN_GOTCHAS)
+    if not as_json:
+        print(_c(_BOLD, "\n[7] Known API gotchas"))
+        print(_DOCTOR_KNOWN_GOTCHAS)
 
     # ── Summary ──────────────────────────────────────────────────────────────
-    print(_c(_BOLD, "─" * 50))
+    if not as_json:
+        print(_c(_BOLD, "─" * 50))
     if issues:
-        print(_c(_RED, f"Found {len(issues)} issue(s):"))
-        for i, issue in enumerate(issues, 1):
-            print(f"  {i}. {issue}")
-        print()
+        if not as_json:
+            print(_c(_RED, f"Found {len(issues)} issue(s):"))
+            for i, issue in enumerate(issues, 1):
+                print(f"  {i}. {issue}")
+            print()
+        else:
+            result = {
+                "ok": False,
+                "config_files": config_files_data,
+                "database": {
+                    "path": str(db_path),
+                    "exists": db_exists,
+                    "parent_exists": db_dir_exists
+                },
+                "embedding_model": embedding_model_data,
+                "embedding_store": embedding_store_data,
+                "startup_mode": config.startup_mode,
+                "stdout_encoding": stdout_encoding_data,
+                "issues": issues
+            }
+            print(json.dumps(result, indent=2))
         return 1
     else:
-        print(_c(_GREEN, f"All checks passed ({len(ok_items)} OK). Waggle looks healthy."))
-        print()
+        if not as_json:
+            print(_c(_GREEN, f"All checks passed ({len(ok_items)} OK). Waggle looks healthy."))
+            print()
+        else:
+            result = {
+                "ok": True,
+                "config_files": config_files_data,
+                "database": {
+                    "path": str(db_path),
+                    "exists": db_exists,
+                    "parent_exists": db_dir_exists
+                },
+                "embedding_model": embedding_model_data,
+                "embedding_store": embedding_store_data,
+                "startup_mode": config.startup_mode,
+                "stdout_encoding": stdout_encoding_data,
+                "issues": []
+            }
+            print(json.dumps(result, indent=2))
         return 0
 
 
@@ -6088,7 +6199,7 @@ def main() -> None:
     if command == "doctor":
         # Doctor only needs the config — not a live backend connection.
         config = AppConfig.from_env()
-        sys.exit(_run_doctor(config, fix=bool(getattr(args, "fix", False))))
+        sys.exit(_run_doctor(config, fix=bool(getattr(args, "fix", False)), as_json=bool(getattr(args, "as_json", False))))
 
     config = AppConfig.from_env()
     if command == "serve" and getattr(args, "transport", None):

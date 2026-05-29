@@ -221,7 +221,13 @@ def test_parser_accepts_graph_editor_commands() -> None:
     assert share_args.file_ref == "file123"
 
 
-def test_doctor_flags_mixed_embedding_model_ids(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_doctor_flags_mixed_embedding_model_ids(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    mock_config = tmp_path / "mock_config.json"
+    mock_config.write_text(json.dumps({"mcpServers": {"waggle": {}}}))
+    monkeypatch.setattr("waggle.server._KNOWN_CONFIG_PATHS", [("Mock Client", str(mock_config))])
+
     db_path = tmp_path / "server-memory.db"
     graph = MemoryGraph(db_path, FakeEmbeddingModel())
     graph.observe_conversation(
@@ -269,7 +275,13 @@ def test_doctor_flags_mixed_embedding_model_ids(tmp_path: Path, capsys: pytest.C
     assert "Mixed embedding model IDs detected" in stdout
 
 
-def test_doctor_fix_reembeds_mixed_embedding_model_ids(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_doctor_fix_reembeds_mixed_embedding_model_ids(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    mock_config = tmp_path / "mock_config.json"
+    mock_config.write_text(json.dumps({"mcpServers": {"waggle": {}}}))
+    monkeypatch.setattr("waggle.server._KNOWN_CONFIG_PATHS", [("Mock Client", str(mock_config))])
+
     db_path = tmp_path / "server-memory.db"
     graph = MemoryGraph(db_path, FakeEmbeddingModel())
     graph.observe_conversation(
@@ -318,6 +330,51 @@ def test_doctor_fix_reembeds_mixed_embedding_model_ids(tmp_path: Path, capsys: p
     repaired = graph.get_embedding_store_health()
     assert repaired["mixed_models"] is False
     assert repaired["transcript_stale_rows"] == 0
+
+
+def test_doctor_json_output(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    mock_config = tmp_path / "mock_config.json"
+    mock_config.write_text(json.dumps({"mcpServers": {"waggle": {}}}))
+    monkeypatch.setattr("waggle.server._KNOWN_CONFIG_PATHS", [("Mock Client", str(mock_config))])
+
+    db_path = tmp_path / "server-memory.db"
+    config = AppConfig(
+        backend="sqlite",
+        transport="stdio",
+        model_name="fake-model",
+        db_path=str(db_path),
+        default_tenant_id="local-default",
+        http_host="127.0.0.1",
+        http_port=8080,
+        log_level="INFO",
+        rate_limit_rpm=120,
+        write_rate_limit_rpm=60,
+        max_concurrent_requests=8,
+        max_payload_bytes=1024 * 1024,
+        request_timeout_seconds=30,
+        export_dir=None,
+        neo4j_uri="",
+        neo4j_username="",
+        neo4j_password="",
+        neo4j_database="",
+    )
+
+    exit_code = _run_doctor(config, as_json=True)
+    stdout = capsys.readouterr().out
+
+    assert exit_code == 0
+    data = json.loads(stdout)
+    assert data["ok"] is True
+    assert isinstance(data["config_files"], list)
+    assert data["database"]["path"] == str(db_path)
+    assert data["database"]["exists"] is False
+    assert data["database"]["parent_exists"] is True
+    assert data["embedding_model"]["model_name"] == "fake-model"
+    assert data["embedding_model"]["deterministic"] is True
+    assert data["startup_mode"] == "normal"
+    assert data["issues"] == []
 
 
 def test_create_and_list_api_keys_cli_redacts_hash(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
