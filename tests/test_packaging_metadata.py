@@ -58,3 +58,16 @@ def test_app_package_manifests_exist_in_new_locations() -> None:
     assert (ROOT / "apps" / "vscode-extension" / "package.json").exists()
     assert (ROOT / "apps" / "mcp" / "claude-desktop-extension" / "manifest.json").exists()
     assert (ROOT / "apps" / "mcp" / "graph-ui" / "package.json").exists()
+
+
+def test_graph_ui_bundle_contains_expected_static_assets() -> None:
+    graph_static_dir = ROOT / "src" / "waggle" / "static" / "graph"
+
+    expected_files = ["index.html", "app.css", "app.js"]
+    missing = [name for name in expected_files if not (graph_static_dir / name).is_file()]
+
+    assert not missing, (
+        "Missing bundled Graph Studio assets: "
+        + ", ".join(missing)
+        + ". Rebuild or restore src/waggle/static/graph before packaging."
+    )

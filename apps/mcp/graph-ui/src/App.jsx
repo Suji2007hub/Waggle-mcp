@@ -566,6 +566,19 @@ export function App() {
     setToast("Node deleted.");
   };
 
+  const deleteEdge = async (edgeId) => {
+    if (boot.sampleMode || readOnly) {
+      return;
+    }
+    await pushHistory();
+    await apiRequest(`/api/graph/edges/${edgeId}`, {
+      method: "DELETE"
+    });
+    await loadSnapshot(scope);
+    setSelectedEdgeId("");
+    setToast("Edge deleted.");
+  };
+
   const mergeNode = async (sourceId) => {
     if (!selectedNodeId || selectedNodeId === sourceId || boot.sampleMode) {
       setToast("Select a destination graph node first.");
@@ -660,10 +673,15 @@ export function App() {
   };
 
   const exportGraph = async (format) => {
-    if (boot.sampleMode) {
-      setToast("Sample mode only. Export is disabled.");
+    if (boot.sampleMode || readOnly) {
+      setToast(
+        boot.sampleMode
+          ? "Sample mode. Export is disabled."
+          : "Read-only mode. Export is disabled."
+      );
       return;
     }
+
     const query = new URLSearchParams({ ...scope, format });
     const response = await fetch(`/api/graph/export?${query.toString()}`);
     const blob = await response.blob();
@@ -676,6 +694,11 @@ export function App() {
   };
 
   const runTranscriptSearch = async () => {
+    if (transcriptSearch.trim() === "") {
+      setTranscriptHits([]);
+      setToast("Please enter a search query.");
+      return;
+    }
     if (boot.sampleMode) {
       const queryText = transcriptSearch.trim().toLowerCase();
       setTranscriptHits(
@@ -801,12 +824,15 @@ export function App() {
         if (activeSessions.size && !activeSessions.has(record.session_id || "")) {
           return false;
         }
+
         if (activeAgents.size && !activeAgents.has(record.agent_id || "")) {
           return false;
         }
+
         if (activeProjects.size && !activeProjects.has(record.project || "")) {
           return false;
         }
+
         return true;
       });
 
@@ -1199,6 +1225,18 @@ export function App() {
                 </div>
                 <button className="rounded-xl bg-white px-3 py-2 text-sm font-medium text-black" disabled={readOnly || boot.sampleMode} onClick={() => setEdgeDialog(selectedEdge)} type="button">
                   Edit edge label
+                </button>
+                <button
+                  className="rounded-xl border border-red-400/30 px-3 py-2 text-sm text-red-200"
+                  disabled={readOnly || boot.sampleMode}
+                  onClick={() =>
+                    deleteEdge(selectedEdge.id).catch((error) =>
+                      setToast(error.message)
+                    )
+                  }
+                  type="button"
+                >
+                  Delete edge
                 </button>
               </div>
             ) : (

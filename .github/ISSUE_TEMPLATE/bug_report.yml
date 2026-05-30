@@ -61,6 +61,22 @@ body:
       label: Environment
       description: OS, Python version, client, and any relevant env vars.
       placeholder: macOS 14, Python 3.11, Codex desktop, WAGGLE_MODEL=deterministic
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - macOS
+        - Linux
+        - Windows
+        - other
+  - type: textarea
+    id: windows_details
+    attributes:
+      label: Windows-specific details (fill only if on Windows)
+      description: PowerShell version, execution policy, terminal type (CMD/PowerShell/WSL)
+      placeholder: |
+        PowerShell 7.4, execution policy RemoteSigned, Windows Terminal
   - type: textarea
     id: logs
     attributes:

@@ -95,7 +95,8 @@ def _seed_transcript_fixture(app: WaggleServer, fixture_name: str) -> None:
         agent_id=payload.get("agent_id", ""),
 def write_waggle_codex_config(home: Path, db_path: Path) -> None:
     codex_dir = home / ".codex"
-    codex_dir.mkdir(parents=True)
+    codex_dir.mkdir(parents=True, exist_ok=True)
+    normalized_db_path = db_path.as_posix()
     (codex_dir / "config.toml").write_text(
         "\n".join(
             [
@@ -103,7 +104,7 @@ def write_waggle_codex_config(home: Path, db_path: Path) -> None:
                 'command = "waggle-mcp"',
                 "",
                 "[mcp_servers.waggle.env]",
-                f'WAGGLE_DB_PATH = "{db_path}"',
+                f'WAGGLE_DB_PATH = "{normalized_db_path}"',
                 "",
             ]
         ),
@@ -257,6 +258,8 @@ def test_doctor_flags_mixed_embedding_model_ids(
 ) -> None:
     db_path = tmp_path / "server-memory.db"
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
     write_waggle_codex_config(tmp_path, db_path)
     graph = MemoryGraph(db_path, FakeEmbeddingModel())
     graph.observe_conversation(
@@ -309,6 +312,8 @@ def test_doctor_fix_reembeds_mixed_embedding_model_ids(
 ) -> None:
     db_path = tmp_path / "server-memory.db"
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
     write_waggle_codex_config(tmp_path, db_path)
     graph = MemoryGraph(db_path, FakeEmbeddingModel())
     graph.observe_conversation(
@@ -1624,11 +1629,11 @@ def test_default_graph_uses_sqlite_backend_by_default(tmp_path: Path, monkeypatc
 def test_default_graph_uses_home_scoped_sqlite_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.delenv("WAGGLE_BACKEND", raising=False)
     monkeypatch.delenv("WAGGLE_DB_PATH", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
 
-    # Set WAGGLE_DB_PATH directly to avoid Path.home() issues
     expected_db = tmp_path / ".waggle" / "waggle.db"
-    monkeypatch.setenv("WAGGLE_DB_PATH", str(expected_db))
-
     graph = _default_graph()
 
     assert isinstance(graph, MemoryGraph)
@@ -1693,6 +1698,7 @@ def test_default_graph_requires_neo4j_connection_settings(monkeypatch: pytest.Mo
 
 def test_write_other_config_no_longer_uses_pythonpath(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
 
     config_path = _write_other(str(tmp_path / "memory.db"), "/tmp/fake-python")
     contents = config_path.read_text()
@@ -1705,6 +1711,7 @@ def test_write_other_config_no_longer_uses_pythonpath(monkeypatch: pytest.Monkey
 
 def test_write_codex_config_no_longer_uses_pythonpath(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
 
     config_path = _write_codex(str(tmp_path / "memory.db"), "/tmp/fake-python")
@@ -1733,6 +1740,7 @@ def test_setup_client_arg_normalization() -> None:
 
 def test_write_gemini_config_preserves_existing_settings(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
     settings_file = tmp_path / ".gemini" / "settings.json"
     settings_file.parent.mkdir(parents=True)
@@ -1750,6 +1758,7 @@ def test_write_gemini_config_preserves_existing_settings(monkeypatch: pytest.Mon
 
 def test_write_antigravity_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
 
     config_path = _write_antigravity(str(tmp_path / "memory.db"), "/tmp/fake-python")
@@ -1762,6 +1771,7 @@ def test_write_antigravity_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Pat
 
 def test_run_setup_writes_codex_config_and_agents(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
     monkeypatch.chdir(tmp_path)
 
@@ -1788,6 +1798,7 @@ def test_write_codex_config_updates_existing_file_without_duplicates(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
     config_file = tmp_path / ".codex" / "config.toml"
     config_file.parent.mkdir(parents=True)

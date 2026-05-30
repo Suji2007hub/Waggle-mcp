@@ -69,3 +69,48 @@ waggle-mcp serve --transport stdio
 ## Security and privacy
 
 Waggle stores memory locally by default. If troubleshooting requires sharing logs, inspect them first so you do not leak transcript content or secrets.
+
+---
+
+## Windows-specific troubleshooting
+
+### `waggle-mcp: command not found` on Windows
+
+After installing with pipx, update your PATH:
+
+```powershell
+pipx ensurepath
+```
+
+Then **close and reopen** your terminal. If it still fails, add manually:
+
+```powershell
+$env:PATH += ";$env:USERPROFILE\.local\bin"
+```
+
+### PowerShell execution policy error
+
+If you see `running scripts is disabled on this system`, run:
+
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+### UTF-8 stdout errors on Windows
+
+```powershell
+$env:PYTHONUTF8 = "1"
+```
+
+### Database path on Windows
+
+```powershell
+$env:WAGGLE_DB_PATH = "$env:APPDATA\waggle\waggle.db"
+```
+
+### Enable verbose logs on Windows
+
+```powershell
+$env:WAGGLE_LOG_LEVEL = "DEBUG"
+waggle-mcp serve --transport stdio
+```

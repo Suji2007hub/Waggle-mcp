@@ -374,43 +374,7 @@ A reusable copy also lives in [automatic-memory-rules.md](./automatic-memory-rul
 
 ## Environment variables
 
-### Core
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `WAGGLE_BACKEND` | `sqlite` | `sqlite` or `neo4j` |
-| `WAGGLE_TRANSPORT` | `stdio` | `stdio` or `http` |
-| `WAGGLE_MODEL` | `all-MiniLM-L6-v2` | sentence-transformers model |
-| `WAGGLE_DEFAULT_TENANT_ID` | `local-default` | default tenant |
-| `WAGGLE_EXPORT_DIR` | — | optional export directory |
-
-### SQLite
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `WAGGLE_DB_PATH` | `~/.waggle/waggle.db` | path to the SQLite file |
-
-### HTTP service
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `WAGGLE_HTTP_HOST` | `0.0.0.0` | bind host |
-| `WAGGLE_HTTP_PORT` | `8080` | bind port |
-| `WAGGLE_LOG_LEVEL` | `INFO` | log level |
-| `WAGGLE_RATE_LIMIT_RPM` | `120` | global rate limit |
-| `WAGGLE_WRITE_RATE_LIMIT_RPM` | `60` | write-tool rate limit |
-| `WAGGLE_MAX_CONCURRENT_REQUESTS` | `8` | concurrency cap |
-| `WAGGLE_MAX_PAYLOAD_BYTES` | `1048576` | max request size |
-| `WAGGLE_REQUEST_TIMEOUT_SECONDS` | `30` | per-request timeout |
-
-### Neo4j
-
-| Variable | Description |
-|----------|-------------|
-| `WAGGLE_NEO4J_URI` | Bolt URI, e.g. `bolt://localhost:7687` |
-| `WAGGLE_NEO4J_USERNAME` | Neo4j username |
-| `WAGGLE_NEO4J_PASSWORD` | Neo4j password |
-| `WAGGLE_NEO4J_DATABASE` | Neo4j database name |
+See [Environment variables](./environment-variables.md) for the complete `WAGGLE_*` configuration reference, including defaults, value types, when each variable applies, and example values.
 
 ### Extraction
 
