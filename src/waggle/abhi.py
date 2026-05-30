@@ -428,7 +428,19 @@ def build_abhi_document(
                         import json as _json
 
                         meta = _json.loads(meta)
-                    except Exception:
+                        if not isinstance(meta, dict):
+                            logger.warning(
+                                "Edge %s has non-dict metadata, defaulting to {}: got %s",
+                                edge.get("id", "<unknown>"),
+                                type(meta).__name__,
+                            )
+                            meta = {}
+                    except _json.JSONDecodeError as exc:
+                        logger.warning(
+                            "Edge %s has malformed metadata, defaulting to {}: %s",
+                            edge.get("id", "<unknown>"),
+                            exc,
+                        )
                         meta = {}
                 confidence = float(meta.get("edge_confidence", 1.0))
                 if confidence < low_confidence_threshold:

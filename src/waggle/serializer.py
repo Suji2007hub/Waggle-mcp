@@ -65,9 +65,13 @@ def serialize_subgraph(result: SubgraphResult) -> str:
         ]
         for index, hit in enumerate(result.hybrid_hits, start=1):
             reasoning = f" reason={hit.reasoning_from_reranker}" if hit.reasoning_from_reranker else ""
+            explanation = (
+                " | ".join(f"{k}={v}" for k, v in hit.score_explanation.items()) if hit.score_explanation else "n/a"
+            )
             lines.append(
                 f"• #{index} [{hit.source}] {hit.content[:400]} [score={hit.score:.4f}] "
-                f"(turn_pair={hit.turn_pair_id or 'n/a'}, node_ids={hit.node_ids}){reasoning}"
+                f"(turn_pair={hit.turn_pair_id or 'n/a'}, node_ids={hit.node_ids}){reasoning} "
+                f"[score_explanation: {explanation}]"
             )
         lines.extend(["", "=== End Results ==="])
         return "\n".join(lines)

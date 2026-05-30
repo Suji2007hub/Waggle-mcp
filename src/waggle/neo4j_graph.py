@@ -236,6 +236,7 @@ class Neo4jMemoryGraph:
         dedup_similarity_threshold: float = 0.97,
         dedup_same_label_threshold: float = 0.9,
         export_dir: str | Path | None = None,
+        api_key_environment: str = "test",
         _driver: Any | None = None,
         _owns_driver: bool = True,
     ) -> None:
@@ -258,6 +259,7 @@ class Neo4jMemoryGraph:
         self.dedup_similarity_threshold = dedup_similarity_threshold
         self.dedup_same_label_threshold = dedup_same_label_threshold
         self.export_dir = Path(export_dir).expanduser() if export_dir is not None else Path.cwd() / "exports"
+        self.api_key_environment = api_key_environment
         self._lock = threading.RLock()
         self._initialize_database()
 
@@ -373,6 +375,7 @@ class Neo4jMemoryGraph:
             dedup_similarity_threshold=self.dedup_similarity_threshold,
             dedup_same_label_threshold=self.dedup_same_label_threshold,
             export_dir=self.export_dir,
+            api_key_environment=self.api_key_environment,
             _driver=self._driver,
             _owns_driver=False,
         )
@@ -621,7 +624,7 @@ class Neo4jMemoryGraph:
         scopes: list[str] | None = None,
     ) -> ApiKeyCreateResult:
         tenant = self.ensure_tenant(tenant_id)
-        raw_api_key = generate_api_key()
+        raw_api_key = generate_api_key(self.api_key_environment)
         record = ApiKeyRecord(
             api_key_id=str(uuid4()),
             tenant_id=tenant.tenant_id,
@@ -1860,59 +1863,98 @@ class Neo4jMemoryGraph:
                 total_nodes_in_graph=len(nodes_by_id),
             )
 
-    def update_node(
-        self,
-        *,
-        node_id: str,
-        content: str | None = None,
-        label: str | None = None,
-        tags: list[str] | None = None,
-    ) -> Node:
-        if content is None and label is None and tags is None:
-            raise ValueError("At least one field must be provided for update.")
 
-        with self._lock, self._session() as session:
-            node = self._fetch_node(session, node_id)
-            if node is None:
-                raise ValueError(f"Node not found: {node_id}")
+def update_node(
+    self,
+    *,
+    node_id: str,
+    content: str | None = None,
+    label: str | None = None,
+    tags: list[str] | None = None,
+    agent_id: str | None = None,
+    project: str | None = None,
+    session_id: str | None = None,
+    valid_from: datetime | None = None,
+    valid_to: datetime | None = None,
+    evidence_records: list[EvidenceRecord] | None = None,
+) -> Node:
 
-            updated_node = Node(
-                id=node.id,
-                tenant_id=node.tenant_id,
-                label=label if label is not None else node.label,
-                content=content if content is not None else node.content,
-                node_type=node.node_type,
-                tags=tags if tags is not None else node.tags,
-                source_prompt=node.source_prompt,
-                created_at=node.created_at,
-                updated_at=utc_now(),
-                access_count=node.access_count,
-            )
-            embedding = None
-            if content is not None:
-                embedding = self.embedding_model.embed(updated_node.content).astype(np.float32).tolist()
+    if (
+        content is None
+        and label is None
+        and tags is None
+        and agent_id is None
+        and project is None
+        and session_id is None
+        and valid_from is None
+        and valid_to is None
+        and evidence_records is None
+    ):
+        raise ValueError("At least one field must be provided for update.")
 
-            session.run(
-                """
-                MATCH (n:MemoryNode {tenant_id: $tenant_id, id: $id})
-                SET n.label = $label,
-                    n.content = $content,
-                    n.tags = $tags,
-                    n.updated_at = $updated_at,
-                    n.embedding = CASE
-                        WHEN $embedding IS NULL THEN n.embedding
-                        ELSE $embedding
-                    END
-                """,
-                id=updated_node.id,
-                tenant_id=self.tenant_id,
-                label=updated_node.label,
-                content=updated_node.content,
-                tags=updated_node.tags,
-                updated_at=updated_node.updated_at.isoformat(),
-                embedding=embedding,
-            ).consume()
-            return updated_node
+    with self._lock, self._session() as session:
+        node = self._fetch_node(session, node_id)
+
+        if node is None:
+            raise ValueError(f"Node not found: {node_id}")
+
+        updated_node = Node(
+            id=node.id,
+            tenant_id=node.tenant_id,
+            agent_id=agent_id if agent_id is not None else node.agent_id,
+            project=project if project is not None else node.project,
+            session_id=session_id if session_id is not None else node.session_id,
+            label=label if label is not None else node.label,
+            content=content if content is not None else node.content,
+            node_type=node.node_type,
+            tags=tags if tags is not None else node.tags,
+            source_prompt=node.source_prompt,
+            evidence_records=evidence_records if evidence_records is not None else node.evidence_records,
+            valid_from=valid_from if valid_from is not None else node.valid_from,
+            valid_to=valid_to if valid_to is not None else node.valid_to,
+            created_at=node.created_at,
+            updated_at=utc_now(),
+            access_count=node.access_count,
+        )
+
+        embedding = None
+        if content is not None:
+            embedding = self.embedding_model.embed(updated_node.content).astype(np.float32).tolist()
+
+        session.run(
+            """
+            MATCH (n:MemoryNode {tenant_id: $tenant_id, id: $id})
+            SET n.label = $label,
+                n.content = $content,
+                n.tags = $tags,
+                n.agent_id = $agent_id,
+                n.project = $project,
+                n.session_id = $session_id,
+                n.valid_from = $valid_from,
+                n.valid_to = $valid_to,
+                n.evidence_records = $evidence_records,
+                n.updated_at = $updated_at,
+                n.embedding = CASE
+                    WHEN $embedding IS NULL THEN n.embedding
+                    ELSE $embedding
+                END
+            """,
+            id=updated_node.id,
+            tenant_id=self.tenant_id,
+            label=updated_node.label,
+            content=updated_node.content,
+            tags=updated_node.tags,
+            agent_id=updated_node.agent_id,
+            project=updated_node.project,
+            session_id=updated_node.session_id,
+            valid_from=updated_node.valid_from.isoformat() if updated_node.valid_from else None,
+            valid_to=updated_node.valid_to.isoformat() if updated_node.valid_to else None,
+            evidence_records=_encode_evidence_records(updated_node.evidence_records),
+            updated_at=updated_node.updated_at.isoformat(),
+            embedding=embedding,
+        ).consume()
+
+        return updated_node
 
     def update_edge(
         self,

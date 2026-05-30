@@ -493,6 +493,7 @@ def _build_backend(config: AppConfig) -> Any:
             tiered_retrieval_top_k_windows=config.tiered_retrieval_top_k_windows,
             hybrid_retrieval_config=config.hybrid_retrieval_config(),
             export_dir=config.export_dir,
+            api_key_environment=config.api_key_environment,
         )
     from waggle.neo4j_graph import Neo4jMemoryGraph
 
@@ -504,6 +505,7 @@ def _build_backend(config: AppConfig) -> Any:
         embedding_model=embedding_model,
         tenant_id=config.default_tenant_id,
         export_dir=config.export_dir,
+        api_key_environment=config.api_key_environment,
     )
 
 
@@ -3465,6 +3467,13 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
     async def graph_create_edge(request: Request) -> Response:
         payload = await request.json()
         graph, _ = _require_http_scope(request, "graph:write")
+        raw_weight = payload.get("weight", 1.0)
+        try:
+            weight_value = float(raw_weight)
+        except (TypeError, ValueError):
+            raise ValidationFailure("Edge weight must be a numeric value between 0 and 1.")
+        if not (0 <= weight_value <= 1):
+            raise ValidationFailure("Edge weight must be a numeric value between 0 and 1.")
         snapshot = graph.get_graph_snapshot()
         snapshot["edges"] = [*snapshot.get("edges", []), _edge_snapshot_payload(snapshot=snapshot, payload=payload)]
         _validate_live_snapshot(snapshot)
@@ -3481,6 +3490,13 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         edge_id = request.path_params["edge_id"]
         payload = await request.json()
         graph, _ = _require_http_scope(request, "graph:write")
+        if "weight" in payload and payload.get("weight") is not None:
+            try:
+                weight_value = float(payload["weight"])
+            except (TypeError, ValueError):
+                raise ValidationFailure("Edge weight must be a numeric value between 0 and 1.")
+            if not (0 <= weight_value <= 1):
+                raise ValidationFailure("Edge weight must be a numeric value between 0 and 1.")
         snapshot = graph.get_graph_snapshot()
         existing = next(
             (item for item in snapshot.get("edges", []) if str(item.get("id", "")).strip() == edge_id), None
@@ -3494,6 +3510,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             for item in snapshot.get("edges", [])
         ]
         _validate_live_snapshot(snapshot)
+
         edge = graph.update_edge(
             edge_id=edge_id,
             source_id=str(payload.get("source_id", "")).strip() or None,
