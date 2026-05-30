@@ -571,3 +571,78 @@ class TestEdgeQualityReport:
         report = graph.edge_quality_report()
         rt = report["by_type"]["relates_to"]
         assert rt["avg_confidence"] == pytest.approx(1.0)
+
+    def test_malformed_or_non_dict_edge_metadata_logs_warning(self, caplog) -> None:
+        """Edges with malformed or non-dict metadata JSON should log a warning and be treated as having no confidence."""
+        import uuid
+
+        from waggle.models import utc_now
+
+        now = utc_now().isoformat()
+        node_ids = [str(uuid.uuid4()) for _ in range(4)]
+        nodes = [
+            {
+                "id": nid,
+                "tenant_id": "local-default",
+                "agent_id": "",
+                "project": "",
+                "session_id": "",
+                "context_window_id": None,
+                "label": f"N{i}",
+                "content": f"content {i}",
+                "node_type": "fact",
+                "tags": [],
+                "source_prompt": "",
+                "embedding_model_id": "",
+                "embedding_dim": 0,
+                "source_turn_pair_id": "",
+                "metadata": {},
+                "evidence_records": [],
+                "valid_from": None,
+                "valid_to": None,
+                "created_at": now,
+                "updated_at": now,
+                "access_count": 0,
+                "embedding": None,
+            }
+            for i, nid in enumerate(node_ids)
+        ]
+        edges = [
+            {
+                "id": str(uuid.uuid4()),
+                "tenant_id": "local-default",
+                "source_id": node_ids[0],
+                "target_id": node_ids[1],
+                "relationship": "relates_to",
+                "weight": 1.0,
+                "metadata": "{not valid",
+                "created_at": now,
+            },
+            {
+                "id": str(uuid.uuid4()),
+                "tenant_id": "local-default",
+                "source_id": node_ids[2],
+                "target_id": node_ids[3],
+                "relationship": "relates_to",
+                "weight": 1.0,
+                "metadata": '"foo"',  # Valid JSON, but not a dict
+                "created_at": now,
+            },
+        ]
+        snapshot = {
+            "schema_version": 1,
+            "tenant_id": "local-default",
+            "embedding_model_id": "",
+            "nodes": nodes,
+            "edges": edges,
+            "transcripts": [],
+            "context_windows": [],
+            "repos": [],
+            "context_window_edges": [],
+        }
+        with caplog.at_level("WARNING"):
+            doc = build_abhi_document(snapshot, include_low_confidence_edges=False)
+            assert "malformed metadata" in caplog.text
+            assert "non-dict metadata" in caplog.text
+            # Both edges should be kept because the default confidence is 1.0
+            assert len(doc["edges"]) == 2

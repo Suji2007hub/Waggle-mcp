@@ -108,6 +108,7 @@ class CandidateMemory:
     observed_at: datetime | None = None
     score: float = 0.0
     layer_scores: dict[str, float] = field(default_factory=dict)
+    score_explanation: dict[str, float] = field(default_factory=dict)
     reasoning_from_reranker: str = ""
 
 
@@ -266,6 +267,7 @@ class HybridRetriever:
                 reasoning_from_reranker=item.reasoning_from_reranker,
                 observed_at=item.observed_at,
                 layer_scores=item.layer_scores,
+                score_explanation=item.score_explanation,
             )
             for item in reranked
         ]
@@ -627,7 +629,24 @@ class HybridRetriever:
                 + self.config.bm25_weight * item.layer_scores.get("bm25", 0.0)
                 + self.config.graph_weight * item.layer_scores.get("graph_expansion", 0.0)
             )
-            item.score = fused * ((1.0 - self.config.recency_weight) + (self.config.recency_weight * decay))
+            recency_multiplier = (1.0 - self.config.recency_weight) + (self.config.recency_weight * decay)
+            item.score = fused * recency_multiplier
+            raw = {
+                "vector_transcript": self.config.vector_weight
+                * item.layer_scores.get("vector_transcript", 0.0)
+                * recency_multiplier,
+                "vector_node": self.config.vector_weight
+                * item.layer_scores.get("vector_node", 0.0)
+                * recency_multiplier,
+                "bm25": self.config.bm25_weight * item.layer_scores.get("bm25", 0.0) * recency_multiplier,
+                "graph_expansion": self.config.graph_weight
+                * item.layer_scores.get("graph_expansion", 0.0)
+                * recency_multiplier,
+            }
+            total = sum(raw.values()) or 1.0
+            item.score_explanation = {k: round(v / total, 4) for k, v in raw.items()}
+            item.score_explanation["recency_multiplier"] = round(recency_multiplier, 4)
+            item.score_explanation["final_score"] = round(item.score, 4)
             if item.source == "node" and item.turn_pair_id and item.transcript_text:
                 item.source = "both"
                 item.content = f"{item.transcript_text}\n{item.content}"

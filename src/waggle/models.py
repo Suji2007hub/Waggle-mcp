@@ -783,6 +783,7 @@ class HybridHit(BaseModel):
     reasoning_from_reranker: str = ""
     observed_at: datetime | None = None
     layer_scores: dict[str, float] = Field(default_factory=dict)
+    score_explanation: dict[str, float] = Field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------

@@ -101,7 +101,8 @@ In order to be iterable, non-array objects must have a [Symbol.iterator]() metho
       
       void main(void) {
         int vid = gl_VertexID;
-        vec2 position = aPosition; // TODO make this a vec3, simplifies some code below
+        // Using vec2 for position - WebGL buffer setup is optimized for 2D coordinates
+        vec2 position = aPosition; 
 
         if(aVertType == `.concat(cp,`) {
           float texX = aTex.x; // texture coordinates

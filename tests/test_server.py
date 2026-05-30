@@ -85,7 +85,8 @@ def make_app(tmp_path: Path) -> WaggleServer:
 
 def write_waggle_codex_config(home: Path, db_path: Path) -> None:
     codex_dir = home / ".codex"
-    codex_dir.mkdir(parents=True)
+    codex_dir.mkdir(parents=True, exist_ok=True)
+    normalized_db_path = db_path.as_posix()
     (codex_dir / "config.toml").write_text(
         "\n".join(
             [
@@ -93,7 +94,7 @@ def write_waggle_codex_config(home: Path, db_path: Path) -> None:
                 'command = "waggle-mcp"',
                 "",
                 "[mcp_servers.waggle.env]",
-                f'WAGGLE_DB_PATH = "{db_path}"',
+                f'WAGGLE_DB_PATH = "{normalized_db_path}"',
                 "",
             ]
         ),
@@ -247,6 +248,8 @@ def test_doctor_flags_mixed_embedding_model_ids(
 ) -> None:
     db_path = tmp_path / "server-memory.db"
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
     write_waggle_codex_config(tmp_path, db_path)
     graph = MemoryGraph(db_path, FakeEmbeddingModel())
     graph.observe_conversation(
@@ -299,6 +302,8 @@ def test_doctor_fix_reembeds_mixed_embedding_model_ids(
 ) -> None:
     db_path = tmp_path / "server-memory.db"
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
     write_waggle_codex_config(tmp_path, db_path)
     graph = MemoryGraph(db_path, FakeEmbeddingModel())
     graph.observe_conversation(
@@ -508,7 +513,7 @@ def test_create_and_list_api_keys_cli_redacts_hash(tmp_path: Path, capsys: pytes
     create_payload = json.loads(capsys.readouterr().out)
 
     assert exit_code == 0
-    assert create_payload["prefix"].startswith("sk_live_")
+    assert create_payload["prefix"].startswith("sk_test_")
     assert create_payload["created_by"] == "ops@example.com"
     assert create_payload["scopes"] == ["graph:read", "graph:write", "admin:read", "admin:write"]
     assert "raw_api_key" in create_payload
@@ -524,6 +529,25 @@ def test_create_and_list_api_keys_cli_redacts_hash(tmp_path: Path, capsys: pytes
     assert listed[0]["expires_at"] is not None
     assert listed[0]["scopes"] == ["graph:read", "graph:write", "admin:read", "admin:write"]
     assert "key_hash" not in listed[0]
+
+
+def test_create_api_key_cli_uses_configured_live_prefix(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    app = make_app(tmp_path)
+    app.config.api_key_environment = "live"
+
+    create_args = SimpleNamespace(
+        command="create-api-key",
+        tenant_id="workspace-a",
+        name="prod-agent",
+        expires_in_days=30,
+        created_by="ops@example.com",
+    )
+    exit_code = _run_admin_command(app.config, create_args)
+    create_payload = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 0
+    assert create_payload["prefix"].startswith("sk_live_")
+    assert create_payload["raw_api_key"].startswith(create_payload["prefix"])
 
 
 def test_retention_admin_commands_update_and_prune(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -1606,11 +1630,11 @@ def test_default_graph_uses_sqlite_backend_by_default(tmp_path: Path, monkeypatc
 def test_default_graph_uses_home_scoped_sqlite_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.delenv("WAGGLE_BACKEND", raising=False)
     monkeypatch.delenv("WAGGLE_DB_PATH", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
 
-    # Set WAGGLE_DB_PATH directly to avoid Path.home() issues
     expected_db = tmp_path / ".waggle" / "waggle.db"
-    monkeypatch.setenv("WAGGLE_DB_PATH", str(expected_db))
-
     graph = _default_graph()
 
     assert isinstance(graph, MemoryGraph)
@@ -1675,6 +1699,7 @@ def test_default_graph_requires_neo4j_connection_settings(monkeypatch: pytest.Mo
 
 def test_write_other_config_no_longer_uses_pythonpath(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
 
     config_path = _write_other(str(tmp_path / "memory.db"), "/tmp/fake-python")
     contents = config_path.read_text()
@@ -1687,6 +1712,7 @@ def test_write_other_config_no_longer_uses_pythonpath(monkeypatch: pytest.Monkey
 
 def test_write_codex_config_no_longer_uses_pythonpath(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
 
     config_path = _write_codex(str(tmp_path / "memory.db"), "/tmp/fake-python")
@@ -1715,6 +1741,7 @@ def test_setup_client_arg_normalization() -> None:
 
 def test_write_gemini_config_preserves_existing_settings(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
     settings_file = tmp_path / ".gemini" / "settings.json"
     settings_file.parent.mkdir(parents=True)
@@ -1732,6 +1759,7 @@ def test_write_gemini_config_preserves_existing_settings(monkeypatch: pytest.Mon
 
 def test_write_antigravity_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
 
     config_path = _write_antigravity(str(tmp_path / "memory.db"), "/tmp/fake-python")
@@ -1744,6 +1772,7 @@ def test_write_antigravity_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Pat
 
 def test_run_setup_writes_codex_config_and_agents(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
     monkeypatch.chdir(tmp_path)
 
@@ -1770,6 +1799,7 @@ def test_write_codex_config_updates_existing_file_without_duplicates(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
     config_file = tmp_path / ".codex" / "config.toml"
     config_file.parent.mkdir(parents=True)

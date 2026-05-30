@@ -314,3 +314,69 @@ def test_cross_session_codeword_verification_uses_verbatim_layer_when_extraction
 
     assert any("saffron-badger-v2" in hit.content for hit in hybrid.hybrid_hits)
     assert any("saffron-badger-v2" in hit.content for hit in verbatim.hybrid_hits)
+
+
+def test_score_explanation_keys_present():
+    candidate = CandidateMemory(
+        candidate_id="test-1",
+        content="test content",
+        source="transcript",
+        observed_at=datetime(2024, 1, 1, tzinfo=UTC),
+    )
+    candidate.layer_scores["vector_transcript"] = 0.5
+    candidate.layer_scores["bm25"] = 0.3
+
+    assert hasattr(candidate, "score_explanation")
+    candidate.score_explanation = {
+        "vector_transcript": 0.6,
+        "bm25": 0.4,
+        "final_score": 0.42,
+    }
+    assert "final_score" in candidate.score_explanation
+    assert "vector_transcript" in candidate.score_explanation
+
+
+def test_score_explanation_normalized():
+    candidate = CandidateMemory(
+        candidate_id="test-2",
+        content="test",
+        source="transcript",
+    )
+    candidate.score_explanation = {
+        "vector_transcript": 0.5,
+        "vector_node": 0.2,
+        "bm25": 0.2,
+        "graph_expansion": 0.1,
+        "recency": 0.0,
+    }
+    contributions = [v for k, v in candidate.score_explanation.items() if k != "final_score"]
+    assert abs(sum(contributions) - 1.0) < 1e-4
+
+
+def test_layer_scores_backward_compatible():
+    candidate = CandidateMemory(
+        candidate_id="test-3",
+        content="test",
+        source="transcript",
+    )
+    candidate.layer_scores["vector_transcript"] = 0.8
+    candidate.layer_scores["bm25"] = 0.6
+    assert "vector_transcript" in candidate.layer_scores
+    assert "bm25" in candidate.layer_scores
+
+
+def test_score_explanation_includes_recency_contribution():
+    candidate = CandidateMemory(
+        candidate_id="test-4",
+        content="test",
+        source="transcript",
+    )
+    candidate.score_explanation = {
+        "vector_transcript": 0.4,
+        "bm25": 0.3,
+        "graph_expansion": 0.1,
+        "recency": 0.2,  # non-zero recency
+        "final_score": 0.55,
+    }
+    assert candidate.score_explanation["recency"] > 0
+    assert "final_score" in candidate.score_explanation

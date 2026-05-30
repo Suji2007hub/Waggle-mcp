@@ -17,6 +17,7 @@ No cloud account. No API key. Local by default.
 - [Antigravity](./antigravity.md)
 - [Generic MCP clients](./generic-mcp.md)
 - [Troubleshooting](./troubleshooting.md)
+- [Windows setup & troubleshooting](./troubleshooting.md#windows-specific-troubleshooting)
 
 ## One-line install
 

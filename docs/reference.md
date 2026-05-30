@@ -374,6 +374,8 @@ A reusable copy also lives in [automatic-memory-rules.md](./automatic-memory-rul
 
 ## Environment variables
 
+See [Environment variables](./environment-variables.md) for the complete `WAGGLE_*` configuration reference, including defaults, value types, when each variable applies, and example values.
+
 ### Core
 
 | Variable | Default | Description |
@@ -389,17 +391,6 @@ A reusable copy also lives in [automatic-memory-rules.md](./automatic-memory-rul
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `WAGGLE_DB_PATH` | `~/.waggle/waggle.db` | path to the SQLite file |
-
-### Database Path Resolution
-
-When using the SQLite backend, Waggle determines the database path in the following order:
-
-1. `WAGGLE_DB_PATH` if it is explicitly set.
-2. `mcp_servers.waggle.env.WAGGLE_DB_PATH` from `~/.codex/config.toml` (only when `WAGGLE_DB_PATH` is not set).
-3. The default path: `~/.waggle/waggle.db`.
-
-The `~` character is expanded to the current user's home directory.
-To force Waggle to use a specific database location, set `WAGGLE_DB_PATH` explicitly.
 
 ### HTTP service
 
@@ -422,6 +413,7 @@ To force Waggle to use a specific database location, set `WAGGLE_DB_PATH` explic
 | `WAGGLE_NEO4J_USERNAME` | Neo4j username |
 | `WAGGLE_NEO4J_PASSWORD` | Neo4j password |
 | `WAGGLE_NEO4J_DATABASE` | Neo4j database name |
+
 
 ### Extraction
 
