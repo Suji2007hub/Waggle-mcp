@@ -152,7 +152,18 @@ WAGGLE_MODEL=deterministic pytest -v --tb=short
 If you change benchmark-facing numbers, regenerate the corresponding artifacts and update `tests/artifacts/README.md`.
 
 ---
+### Writing Tests
 
+Follow these rules when adding tests to the repository:
+
+* **File naming:** Test files must mirror the source code layout. Name your test file `tests/test_<module>.py` to match its source file at `src/waggle/<module>.py`.
+* **Test naming:** Use descriptive names indicating the behavior and condition being tested. Format your functions as `test_<function_or_behavior>_<condition>` (e.g., `test_hash_api_key_same_input_produces_same_hash`).
+* **Fixtures:** Use standard pytest fixtures to isolate environments. Use `tmp_path` for filesystem interactions, `monkeypatch.setenv` for environment variables, and `capsys` for capturing stdout. Always use `WAGGLE_MODEL=deterministic` unless explicitly testing live embedding quality.
+* **Construct real objects:** Instantiate actual Pydantic models from `src/waggle/models.py` rather than using raw dictionaries (`dicts`) or loose mocks. This ensures breaking schema changes or field renames fail the test suite instantly.
+* **What makes a test meaningful:** A test must fail when the behavior it checks is broken. If you can delete or bypass the underlying code under test and the test suite still passes, the test is invalid.
+* **One function per behavior:** Do not bundle multiple unrelated assertions into a single test function. Keeping tests isolated ensures failure logs remain specific and actionable.
+
+---
 ## Code Style
 
 This project uses [ruff](https://docs.astral.sh/ruff/) for both linting and formatting.
