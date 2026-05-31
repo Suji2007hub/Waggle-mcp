@@ -11,6 +11,7 @@ import sqlite3
 import threading
 import time
 from collections.abc import Iterable
+from contextlib import nullcontext, suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -37,6 +38,7 @@ from waggle.abhi import (
     write_abhi_document,
 )
 from waggle.auth import api_key_prefix, generate_api_key, hash_api_key, verify_api_key
+from waggle.connection_pool import DEFAULT_POOL_SIZE, ConnectionPool
 from waggle.context_bundle import build_context_bundle, build_query_summary, export_context_bundle_files
 from waggle.embeddings import EmbeddingModel
 from waggle.errors import AuthenticationError, ValidationFailure
@@ -847,20 +849,50 @@ class MemoryGraph:
         self._lock = _ReadWriteLock()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._initialize_database()
+        # Reuse a small pool of pre-configured connections instead of opening a
+        # fresh one (and re-running every PRAGMA) on each operation. Created
+        # after _initialize_database so the one-time WAL bootstrap/migration runs
+        # on its own connection first. Pooled connections use
+        # check_same_thread=False because graph ops may run on worker threads.
+        self._pool = ConnectionPool(
+            lambda: self._connect(check_same_thread=False),
+            size=DEFAULT_POOL_SIZE,
+        )
+        # Only the graph that created the pool closes it; for_tenant clones share
+        # it (like they share the lock) and must not close it out from under us.
+        self._owns_pool = True
 
     def hybrid_retriever(self) -> HybridRetriever:
         return HybridRetriever(self, config=self.hybrid_retrieval_config)
 
-    def _connect(self, timeout: float = 30.0) -> sqlite3.Connection:
+    def close(self) -> None:
+        """Close pooled SQLite connections owned by this graph.
+
+        Safe to call multiple times. ``for_tenant`` clones share the owning
+        graph's pool and intentionally do not close it.
+        """
+        pool = getattr(self, "_pool", None)
+        if pool is not None and getattr(self, "_owns_pool", False):
+            pool.close()
+
+    def __del__(self) -> None:  # pragma: no cover - best-effort cleanup
+        with suppress(Exception):
+            self.close()
+
+    def _connect(self, timeout: float = 30.0, *, check_same_thread: bool = True) -> sqlite3.Connection:
         """Connect to the SQLite database with WAL mode and cross-process safety.
 
         Args:
             timeout: Connection timeout in seconds (default 30.0).
+            check_same_thread: Passed through to ``sqlite3.connect``. Pooled
+                connections set this to ``False`` so a connection created on one
+                thread can be reused on another (the pool guarantees only one
+                caller holds a given connection at a time).
 
         Returns:
             A configured sqlite3.Connection with WAL mode enabled.
         """
-        connection = sqlite3.connect(str(self.db_path), timeout=timeout)
+        connection = sqlite3.connect(str(self.db_path), timeout=timeout, check_same_thread=check_same_thread)
         connection.row_factory = sqlite3.Row
 
         # WAL mode: enables concurrent reads while maintaining single-writer safety
@@ -952,6 +984,8 @@ class MemoryGraph:
         clone.export_dir = self.export_dir
         clone.api_key_environment = self.api_key_environment
         clone._lock = self._lock
+        clone._pool = self._pool
+        clone._owns_pool = False
         clone.ensure_tenant(clone.tenant_id)
         return clone
 
@@ -960,7 +994,7 @@ class MemoryGraph:
         if not normalized_tenant_id:
             raise ValidationFailure("Tenant ID cannot be empty.")
         created_at = utc_now().isoformat()
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             connection.execute(
                 """
                 INSERT INTO tenants (tenant_id, name, status, created_at)
@@ -994,7 +1028,7 @@ class MemoryGraph:
         normalized_project, normalized_agent, normalized_session = self._normalize_ui_scope(
             project=project, agent_id=agent_id, session_id=session_id
         )
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             row = connection.execute(
                 """
                 SELECT positions, zoom, viewport, groups_json, collapsed_groups, selected_nodes
@@ -1050,7 +1084,7 @@ class MemoryGraph:
             "collapsed_groups": collapsed_groups if collapsed_groups is not None else current["collapsed_groups"],
             "selected_nodes": selected_nodes if selected_nodes is not None else current["selected_nodes"],
         }
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             connection.execute(
                 """
                 INSERT INTO graph_ui_state (
@@ -1105,7 +1139,7 @@ class MemoryGraph:
             created_by=created_by.strip(),
             scopes=scopes,
         )
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             connection.execute(
                 """
                 INSERT INTO api_keys (api_key_id, tenant_id, key_hash, prefix, name, status, created_at, expires_at, revoked_at, last_used_at, created_by, scopes)
@@ -1129,7 +1163,7 @@ class MemoryGraph:
         return ApiKeyCreateResult(record=record, raw_api_key=raw_api_key)
 
     def list_api_keys(self, tenant_id: str) -> list[ApiKeyRecord]:
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             rows = connection.execute(
                 """
                 SELECT api_key_id, tenant_id, key_hash, prefix, name, status, created_at, expires_at, revoked_at, last_used_at, created_by, scopes
@@ -1158,7 +1192,7 @@ class MemoryGraph:
         ]
 
     def revoke_api_key(self, api_key_id: str) -> None:
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             connection.execute(
                 "UPDATE api_keys SET status = 'revoked', revoked_at = ? WHERE api_key_id = ?",
                 (utc_now().isoformat(), api_key_id),
@@ -1172,7 +1206,7 @@ class MemoryGraph:
         default_prune_interval_hours: int = 24,
     ) -> RetentionPolicyRecord:
         now = utc_now()
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             connection.execute(
                 """
                 INSERT INTO retention_policy (
@@ -1233,7 +1267,7 @@ class MemoryGraph:
         if next_prune_interval_hours < 1:
             raise ValidationFailure("Prune interval hours must be at least 1.")
         updated_at = utc_now()
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             connection.execute(
                 """
                 UPDATE retention_policy
@@ -1255,7 +1289,7 @@ class MemoryGraph:
         )
 
     def list_retention_runs(self, *, limit: int = 20) -> list[RetentionPruneRunRecord]:
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             rows = connection.execute(
                 """
                 SELECT run_id, tenant_id, status, cutoff, started_at, completed_at,
@@ -1320,7 +1354,7 @@ class MemoryGraph:
 
         batch_limit = max(1, int(batch_size))
         try:
-            with self._lock, self._connect() as connection:
+            with self._lock, self._pool.checkout() as connection:
                 run.deleted_context_window_edges = self._prune_table_by_ids(
                     connection,
                     select_sql="""
@@ -1427,7 +1461,7 @@ class MemoryGraph:
 
     def authenticate_api_key(self, raw_api_key: str) -> ApiKeyRecord:
         key_hash = hash_api_key(raw_api_key)
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             row = connection.execute(
                 """
                 SELECT api_key_id, tenant_id, key_hash, prefix, name, status, created_at, expires_at, revoked_at, last_used_at, created_by, scopes
@@ -1613,11 +1647,8 @@ class MemoryGraph:
         *,
         connection: sqlite3.Connection | None = None,
     ) -> None:
-        owns_connection = connection is None
-        active_connection = connection
-        if active_connection is None:
-            active_connection = self._connect()
-        try:
+        connection_ctx = nullcontext(connection) if connection is not None else self._pool.checkout()
+        with connection_ctx as active_connection:
             active_connection.execute(
                 """
                 INSERT OR REPLACE INTO retention_prune_runs (
@@ -1644,10 +1675,6 @@ class MemoryGraph:
                     run.error_message,
                 ),
             )
-        finally:
-            if owns_connection and active_connection is not None:
-                active_connection.commit()
-                active_connection.close()
 
     def emit_audit_event(
         self,
@@ -1681,9 +1708,8 @@ class MemoryGraph:
             created_at=created_at or utc_now(),
             metadata=metadata or {},
         )
-        owns_connection = connection is None
-        active_connection = connection or self._connect()
-        try:
+        connection_ctx = nullcontext(connection) if connection is not None else self._pool.checkout()
+        with connection_ctx as active_connection:
             active_connection.execute(
                 """
                 INSERT INTO audit_events (
@@ -1710,10 +1736,6 @@ class MemoryGraph:
                     json.dumps(event.metadata),
                 ),
             )
-        finally:
-            if owns_connection:
-                active_connection.commit()
-                active_connection.close()
         return event
 
     def list_audit_events(
@@ -1753,7 +1775,7 @@ class MemoryGraph:
             LIMIT ?
         """
         values.append(max(1, int(limit)))
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             rows = connection.execute(query, tuple(values)).fetchall()
         return [
             AuditEventRecord(
@@ -1799,7 +1821,7 @@ class MemoryGraph:
         node has no stored embedding (e.g. fast-mode or test stubs).
         """
         try:
-            with self._lock, self._connect() as connection:
+            with self._lock, self._pool.checkout() as connection:
                 row_a = connection.execute(
                     "SELECT embedding FROM nodes WHERE tenant_id = ? AND id = ?",
                     (self.tenant_id, a.id),
@@ -1911,7 +1933,7 @@ class MemoryGraph:
             )
 
     def get_embedding_store_health(self) -> dict[str, Any]:
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             transcript_rows = connection.execute(
                 """
                 SELECT embedding_model_id, COUNT(*) AS count
@@ -1984,7 +2006,7 @@ class MemoryGraph:
         current_model_id = self._current_embedding_model_id()
 
         lock_path = str(self.db_path) + ".lock"
-        with ProcessLock(lock_path), self._lock, self._connect() as connection:
+        with ProcessLock(lock_path), self._lock, self._pool.checkout() as connection:
             while True:
                 transcript_rows = connection.execute(
                     """
@@ -2149,7 +2171,7 @@ class MemoryGraph:
 
         if connection is not None:
             return _ensure(connection)
-        with self._lock, self._connect() as managed_connection:
+        with self._lock, self._pool.checkout() as managed_connection:
             return _ensure(managed_connection)
 
     def ensure_context_window(
@@ -2186,7 +2208,7 @@ class MemoryGraph:
 
         if connection is not None:
             return _ensure(connection)
-        with self._lock, self._connect() as managed_connection:
+        with self._lock, self._pool.checkout() as managed_connection:
             return _ensure(managed_connection)
 
     def resolve_window_context(
@@ -2200,12 +2222,12 @@ class MemoryGraph:
         return repo_id, window_id
 
     def update_window_node_count(self, window_id: str) -> int:
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             count = self._update_window_node_count(connection, window_id)
         return count
 
     def mark_window_embedding_stale(self, window_id: str) -> None:
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             self._mark_window_embedding_stale(connection, window_id)
 
     def _update_window_node_count(self, connection: sqlite3.Connection, window_id: str) -> int:
@@ -2236,7 +2258,7 @@ class MemoryGraph:
         )
 
     def get_context_window(self, window_id: str) -> ContextWindow:
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             row = connection.execute(
                 """
                 SELECT id, tenant_id, repo_id, session_id, title, status, node_count,
@@ -2279,12 +2301,12 @@ class MemoryGraph:
             params.append(normalized_status)
         query += " ORDER BY cw.updated_at DESC LIMIT ?"
         params.append(limit)
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             rows = connection.execute(query, tuple(params)).fetchall()
         return [self._row_to_context_window(row) for row in rows]
 
     def get_context_window_edges(self, window_id: str) -> list[ContextWindowEdge]:
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             rows = connection.execute(
                 """
                 SELECT id, tenant_id, source_window_id, target_window_id, edge_type,
@@ -2300,7 +2322,7 @@ class MemoryGraph:
 
     def close_context_window(self, window_id: str) -> ContextWindow:
         embedding = self.compute_window_embedding(window_id)
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             if embedding is not None:
                 self._save_window_embedding(connection, window_id, embedding)
             self._update_window_node_count(connection, window_id)
@@ -2329,7 +2351,7 @@ class MemoryGraph:
         return window
 
     def get_nodes_without_window(self) -> list[Node]:
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             rows = connection.execute(
                 """
                 SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type,
@@ -2347,7 +2369,7 @@ class MemoryGraph:
         if not node_ids:
             return 0
         placeholders = ", ".join("?" for _ in node_ids)
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             cursor = connection.execute(
                 f"""
                 UPDATE nodes
@@ -2362,7 +2384,7 @@ class MemoryGraph:
         return updated
 
     def list_repos(self) -> list[dict[str, Any]]:
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             rows = connection.execute(
                 """
                 SELECT id, tenant_id, name, description, created_at, updated_at
@@ -2394,7 +2416,7 @@ class MemoryGraph:
         if not include_archived:
             query += " AND status != 'archived'"
         query += " ORDER BY updated_at DESC"
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             rows = connection.execute(query, tuple(params)).fetchall()
         return [self._row_to_context_window(row) for row in rows]
 
@@ -2412,7 +2434,7 @@ class MemoryGraph:
             query += f" AND node_type IN ({placeholders})"
             params.extend(node_type.value for node_type in node_types)
         query += " ORDER BY updated_at DESC"
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             rows = connection.execute(query, tuple(params)).fetchall()
         return [self._row_to_node(row) for row in rows]
 
@@ -2449,7 +2471,7 @@ class MemoryGraph:
         return self.embedding_model.embed(window_text[:12000])
 
     def get_window_embedding(self, window_id: str) -> np.ndarray | None:
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             row = connection.execute(
                 """
                 SELECT embedding, embedding_stale
@@ -2466,7 +2488,7 @@ class MemoryGraph:
         embedding = self.compute_window_embedding(window_id)
         if embedding is None:
             return None
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             self._save_window_embedding(connection, window_id, embedding)
         return embedding
 
@@ -2514,7 +2536,7 @@ class MemoryGraph:
             weight=max(0.0, min(1.0, weight)),
             metadata=metadata or {},
         )
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             connection.execute(
                 """
                 INSERT INTO context_window_edges (
@@ -2770,7 +2792,7 @@ class MemoryGraph:
 
         if connection is not None:
             return _insert(connection)
-        with self._lock, self._connect() as managed_connection:
+        with self._lock, self._pool.checkout() as managed_connection:
             return _insert(managed_connection)
 
     def add_edge(
@@ -2840,11 +2862,11 @@ class MemoryGraph:
 
         if connection is not None:
             return _insert(connection)
-        with self._lock, self._connect() as managed_connection:
+        with self._lock, self._pool.checkout() as managed_connection:
             return _insert(managed_connection)
 
     def get_node(self, node_id: str) -> Node:
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             row = self._fetch_node_row(connection, node_id)
             if row is None:
                 raise ValueError(f"Node not found: {node_id}")
@@ -2883,7 +2905,7 @@ class MemoryGraph:
             edges = subgraph.edges
             scope = f"query:{query.strip()}"
         else:
-            with self._lock, self._connect() as connection:
+            with self._lock, self._pool.checkout() as connection:
                 nodes = self.list_recent_nodes(limit=max(limit, 10))
                 edges = self._fetch_edges_for_nodes(connection, [node.id for node in nodes])
             scope = "tenant"
@@ -2905,7 +2927,7 @@ class MemoryGraph:
         if limit < 1:
             raise ValueError("limit must be at least 1.")
 
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             edge_rows = connection.execute(
                 """
                 SELECT id, source_id, target_id, relationship, weight, metadata, created_at, tenant_id
@@ -2932,7 +2954,7 @@ class MemoryGraph:
         resolution_note: str = "",
         winner: str | None = None,
     ) -> ConflictEntry:
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             row = connection.execute(
                 """
                 SELECT id, source_id, target_id, relationship, weight, metadata, created_at, tenant_id
@@ -3146,7 +3168,7 @@ class MemoryGraph:
         hybrid_hits: list[HybridHit],
     ) -> SubgraphResult:
         node_ids = sorted({node_id for hit in hybrid_hits for node_id in hit.node_ids})
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             nodes = self._fetch_nodes_by_ids(connection, node_ids)
             edges = self._fetch_edges_for_nodes(connection, node_ids) if node_ids else []
             total_nodes = int(
@@ -3198,7 +3220,7 @@ class MemoryGraph:
         if max_depth < 0:
             raise ValueError("max_depth cannot be negative.")
 
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             node_rows = connection.execute(
                 """
                 SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type, tags,
@@ -3382,7 +3404,7 @@ class MemoryGraph:
         ]
         selected_window_ids = {window.id for window in selected_windows}
 
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             candidate_rows = connection.execute(
                 """
                 SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type,
@@ -3644,7 +3666,7 @@ class MemoryGraph:
         include_invalidated: bool = False,
         as_of: datetime | None = None,
     ) -> SubgraphResult:
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             temporal_hints = infer_temporal_hints(query)
             active_session_id = _retrieval_session_scope(
                 agent_id=agent_id,
@@ -3849,7 +3871,7 @@ class MemoryGraph:
         project: str,
         session_id: str,
     ) -> list[ReplayHit]:
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             filters = ["tenant_id = ?", "embedding IS NOT NULL"]
             params: list[Any] = [self.tenant_id]
             if project.strip():
@@ -3936,7 +3958,7 @@ class MemoryGraph:
         project: str,
         session_id: str,
     ) -> dict[str, float]:
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             filters = ["tenant_id = ?", "embedding IS NOT NULL"]
             params: list[Any] = [self.tenant_id]
             if project.strip():
@@ -3991,7 +4013,7 @@ class MemoryGraph:
         project: str,
         session_id: str,
     ) -> dict[str, float]:
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             rows = connection.execute(
                 """
                 SELECT id, tenant_id, agent_id, project, session_id, observed_at, turn_index, role, transcript_text, metadata
@@ -4126,7 +4148,7 @@ class MemoryGraph:
         if max_depth < 0:
             raise ValueError("max_depth cannot be negative.")
 
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             self._require_node(connection, node_id)
             node_rows = connection.execute(
                 """
@@ -4202,7 +4224,7 @@ class MemoryGraph:
         ):
             raise ValueError("At least one field must be provided for update.")
 
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             row = self._fetch_node_row(connection, node_id)
             if row is None:
                 raise ValueError(f"Node not found: {node_id}")
@@ -4292,7 +4314,7 @@ class MemoryGraph:
         if source_id is None and target_id is None and relationship is None and weight is None and metadata is None:
             raise ValueError("At least one field must be provided for edge update.")
 
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             row = self._fetch_edge_row(connection, edge_id)
             if row is None:
                 raise ValueError(f"Edge not found: {edge_id}")
@@ -4336,7 +4358,7 @@ class MemoryGraph:
             return updated_edge
 
     def delete_edge(self, *, edge_id: str) -> Edge:
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             row = self._fetch_edge_row(connection, edge_id)
             if row is None:
                 raise ValueError(f"Edge not found: {edge_id}")
@@ -4353,7 +4375,7 @@ class MemoryGraph:
             return edge
 
     def delete_node(self, *, node_id: str) -> Node:
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             row = self._fetch_node_row(connection, node_id)
             if row is None:
                 raise ValueError(f"Node not found: {node_id}")
@@ -4627,7 +4649,7 @@ class MemoryGraph:
         session_id: str = "",
     ) -> list[Node]:
         limit = max(1, limit)
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             rows = connection.execute(
                 """
                 SELECT id, agent_id, project, session_id, label, content, node_type, tags, source_prompt, metadata, evidence_records, valid_from, valid_to,
@@ -4649,7 +4671,7 @@ class MemoryGraph:
             return selected
 
     def list_context_scopes(self) -> ContextScopeResult:
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             rows = connection.execute(
                 """
                 SELECT agent_id, project, session_id
@@ -4664,7 +4686,7 @@ class MemoryGraph:
         return ContextScopeResult(agent_ids=agent_ids, projects=projects, session_ids=session_ids)
 
     def get_stats(self) -> GraphStats:
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             total_nodes = int(
                 connection.execute("SELECT COUNT(*) FROM nodes WHERE tenant_id = ?", (self.tenant_id,)).fetchone()[0]
             )
@@ -4791,7 +4813,7 @@ class MemoryGraph:
         (they were created before this feature or via the explicit
         ``store_edge`` tool, which implies intentional creation).
         """
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             rows = connection.execute(
                 """
                 SELECT e.id, e.source_id, e.target_id, e.relationship, e.weight,
@@ -4859,7 +4881,7 @@ class MemoryGraph:
         except ImportError as exc:  # pragma: no cover
             raise RuntimeError("pyvis is not installed. Install the project dependencies again.") from exc
 
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             node_rows = connection.execute(
                 """
                 SELECT id, label, content, node_type, tags, source_prompt, metadata,
@@ -4962,7 +4984,7 @@ class MemoryGraph:
         repo_id = self.ensure_repo(project or "default")
         windows = self.get_repo_windows(repo_id, include_archived=True)
         window_ids = {window.id for window in windows}
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             edge_rows = (
                 connection.execute(
                     """
@@ -5057,7 +5079,7 @@ class MemoryGraph:
         return destination
 
     def export_graph_backup(self, *, output_path: str | Path | None = None) -> BackupResult:
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             snapshot = self._build_backup_snapshot(connection)
 
         if output_path is None:
@@ -5102,7 +5124,7 @@ class MemoryGraph:
         include_low_confidence_edges: bool = False,
         low_confidence_threshold: float = 0.7,
     ) -> AbhiExportResult:
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             snapshot = self._build_backup_snapshot(connection, include_embeddings=include_embeddings)
         snapshot["ui"] = self.get_ui_state(project=project, agent_id=agent_id, session_id=session_id)
         if output_path is None:
@@ -5148,7 +5170,7 @@ class MemoryGraph:
         agent_id: str = "",
         session_id: str = "",
     ) -> dict[str, Any]:
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             snapshot = self._build_backup_snapshot(connection)
         filtered = filter_snapshot_by_scope(snapshot, project=project, agent_id=agent_id, session_id=session_id)
         filtered["ui"] = self.get_ui_state(project=project, agent_id=agent_id, session_id=session_id)
@@ -5221,7 +5243,7 @@ class MemoryGraph:
                 retrieval_mode=normalized_retrieval_mode,
             )
         else:
-            with self._lock, self._connect() as connection:
+            with self._lock, self._pool.checkout() as connection:
                 node_rows = connection.execute(
                     """
                     SELECT id, agent_id, project, session_id, label, content, node_type, tags, source_prompt, metadata,
@@ -5304,7 +5326,7 @@ class MemoryGraph:
     ) -> MarkdownVaultExportResult:
         root = Path(root_path).expanduser()
         root.mkdir(parents=True, exist_ok=True)
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             node_rows = connection.execute(
                 """
                 SELECT id, agent_id, project, session_id, label, content, node_type, tags, source_prompt, metadata,
@@ -5368,7 +5390,7 @@ class MemoryGraph:
         if not documents:
             return result
 
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             nodes_by_id = {
                 node.id: node
                 for node in self._fetch_nodes_by_ids(
@@ -5463,7 +5485,7 @@ class MemoryGraph:
         source = Path(input_path).expanduser()
         snapshot = json.loads(source.read_text(encoding="utf-8"))
 
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             snapshot_tenant = str(snapshot.get("tenant_id") or self.tenant_id)
             result = ImportResult(
                 input_path=str(source),
@@ -5612,7 +5634,7 @@ class MemoryGraph:
             reembed_on_import=bool(reembed_on_mismatch and source_model_id and source_model_id != current_model_id),
         )
 
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             snapshot_tenant = str(snapshot.get("tenant_id") or self.tenant_id)
             result = AbhiImportResult(
                 input_path=str(source),
@@ -5760,7 +5782,7 @@ class MemoryGraph:
                 )
 
         node_ids = [node.id for node in created_nodes]
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             edges = self._fetch_edges_for_nodes(connection, node_ids)
         return SubgraphResult(
             nodes=created_nodes,
@@ -6000,7 +6022,7 @@ class MemoryGraph:
         lock_path = str(self.db_path) + ".lock"
         with ProcessLock(lock_path):
             # ===== STEP 1: PERSIST VERBATIM TURN (MANDATORY) =====
-            with self._lock, self._connect() as connection:
+            with self._lock, self._pool.checkout() as connection:
                 next_turn_index = self._next_transcript_turn_index(connection, session_id=session_id)
                 turns = [
                     ("user", user_message.strip(), next_turn_index),
@@ -6252,7 +6274,7 @@ class MemoryGraph:
         lock_path = str(self.db_path) + ".lock"
         with ProcessLock(lock_path):
             newly_written_identities: set[str] = set()
-            with self._lock, self._connect() as connection:
+            with self._lock, self._pool.checkout() as connection:
                 base_turn_index = self._next_transcript_turn_index(connection, session_id=payload.session_id)
                 for raw_pos, msg in enumerate(payload.messages):
                     identity = self._message_fingerprint(msg, raw_pos)
@@ -6302,7 +6324,7 @@ class MemoryGraph:
             # We must scan the full session — not just newly written messages — so that a
             # previously-unpaired trailing user block can be paired with an assistant that
             # arrives in a later ingestion call.
-            with self._lock, self._connect() as connection:
+            with self._lock, self._pool.checkout() as connection:
                 session_rows = connection.execute(
                     """
                     SELECT role, transcript_text, turn_index, message_identity
@@ -6448,7 +6470,7 @@ class MemoryGraph:
 
     def graph_diff(self, *, since: str = "24h") -> GraphDiffResult:
         cutoff = parse_since_value(since)
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             added_nodes = [
                 self._row_to_node(row)
                 for row in connection.execute(
@@ -6508,7 +6530,7 @@ class MemoryGraph:
         session_id: str = "",
         max_nodes: int = 25,
     ) -> PrimeContextResult:
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             total_nodes = int(
                 connection.execute("SELECT COUNT(*) FROM nodes WHERE tenant_id = ?", (self.tenant_id,)).fetchone()[0]
             )
@@ -6670,7 +6692,7 @@ class MemoryGraph:
         )
 
     def get_topics(self) -> TopicResult:
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             node_rows = connection.execute(
                 """
                 SELECT id, agent_id, project, session_id, label, content, node_type, tags, source_prompt, metadata,
@@ -7028,7 +7050,7 @@ class MemoryGraph:
         All edges pointing to/from merged nodes are re-pointed to the canonical node.
         Merged nodes are deleted.  Idempotent: merging an already-merged node is a no-op.
         """
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             # Fetch canonical node
             canonical_row = connection.execute(
                 "SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type, tags, aliases, source_prompt, metadata, evidence_records, valid_from, valid_to, created_at, updated_at, access_count, embedding, embedding_model_id, embedding_dim, source_turn_pair_id, tenant_id FROM nodes WHERE id = ? AND tenant_id = ?",
@@ -7155,7 +7177,7 @@ class MemoryGraph:
             filters.append("agent_id = ?")
             params.append(agent_id)
 
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             rows = connection.execute(
                 f"SELECT id, label, node_type, embedding FROM nodes WHERE {' AND '.join(filters)}",
                 tuple(params),
@@ -7575,7 +7597,7 @@ class MemoryGraph:
         elif agent_id.strip():
             filters.append("agent_id = ?")
             params.append(agent_id.strip())
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             rows = connection.execute(
                 f"""
                 SELECT id, tenant_id, agent_id, project, session_id, observed_at, turn_index, role, transcript_text,
@@ -7607,7 +7629,7 @@ class MemoryGraph:
         elif agent_id.strip():
             filters.append("agent_id = ?")
             params.append(agent_id.strip())
-        with self._lock, self._connect() as connection:
+        with self._lock, self._pool.checkout() as connection:
             row = connection.execute(
                 f"""
                 SELECT COUNT(*) AS cnt
