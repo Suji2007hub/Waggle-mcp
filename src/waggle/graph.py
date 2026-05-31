@@ -5643,7 +5643,21 @@ class MemoryGraph:
         """
         result = ObservationResult()
         stored_candidate_records: list[tuple[Node, list[str]]] = []
-        for candidate in candidates:
+        _candidate_texts = [str(c["content"]) for c in candidates]
+        _batch_embeddings: np.ndarray | None = None
+        if _candidate_texts:
+            try:
+                _batch_embeddings = self.embedding_model.embed_batch(_candidate_texts)
+                if _batch_embeddings is not None and len(_batch_embeddings) != len(_candidate_texts):
+                    raise ValueError(
+                        f"embed_batch returned {len(_batch_embeddings)} vectors, expected {len(_candidate_texts)}"
+                    )
+            except (AttributeError, NotImplementedError):
+                # embed_batch is not available on this model backend (e.g. a test
+                # stub).  Fall back gracefully: add_node will call embed() itself.
+                _batch_embeddings = None
+
+        for _idx, candidate in enumerate(candidates):
             candidate_tags = list(candidate.get("tags", []))
             speaker_tag = next((tag for tag in candidate_tags if str(tag).startswith("speaker:")), "")
             speaker = speaker_tag.split(":", 1)[1] if ":" in speaker_tag else "user"
@@ -5655,6 +5669,11 @@ class MemoryGraph:
                 turn_index=turn_index,
                 observed_at=observed_at,
                 session_id=session_id,
+            )
+            # Pass the pre-computed vector when available; otherwise let add_node
+            # fall back to its own embed() call (preserves backward-compatibility).
+            _precomputed: np.ndarray | None = (
+                _batch_embeddings[_idx] if _batch_embeddings is not None and _idx < len(_batch_embeddings) else None
             )
             store_result = self.add_node(
                 label=str(candidate["label"]),
@@ -5668,6 +5687,7 @@ class MemoryGraph:
                 session_id=session_id,
                 evidence_records=[evidence],
                 valid_from=observed_at,
+                embedding=_precomputed,
                 connection=connection,
             )
             result.stored_nodes.append(store_result.node)
@@ -7376,6 +7396,7 @@ class MemoryGraph:
         project: str = "",
         session_id: str = "",
         limit: int = 200,
+        offset: int = 0,
     ) -> list[TranscriptRecord]:
         filters = ["tenant_id = ?"]
         params: list[Any] = [self.tenant_id]
@@ -7396,11 +7417,40 @@ class MemoryGraph:
                 FROM transcript_records
                 WHERE {" AND ".join(filters)}
                 ORDER BY observed_at ASC, turn_index ASC
-                LIMIT ?
+                LIMIT ? OFFSET ?
                 """,
-                (*params, max(1, int(limit))),
+                (*params, max(1, int(limit)), max(0, int(offset))),
             ).fetchall()
         return [self._row_to_transcript_record(row) for row in rows]
+
+    def count_transcript_records(
+        self,
+        *,
+        agent_id: str = "",
+        project: str = "",
+        session_id: str = "",
+    ) -> int:
+        filters = ["tenant_id = ?"]
+        params: list[Any] = [self.tenant_id]
+        if project.strip():
+            filters.append("project = ?")
+            params.append(project.strip())
+        if session_id.strip():
+            filters.append("session_id = ?")
+            params.append(session_id.strip())
+        elif agent_id.strip():
+            filters.append("agent_id = ?")
+            params.append(agent_id.strip())
+        with self._lock, self._connect() as connection:
+            row = connection.execute(
+                f"""
+                SELECT COUNT(*) AS cnt
+                FROM transcript_records
+                WHERE {" AND ".join(filters)}
+                """,
+                tuple(params),
+            ).fetchone()
+        return int(row["cnt"] or 0)
 
     def search_transcript_records(
         self,
