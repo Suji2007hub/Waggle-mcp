@@ -50,10 +50,8 @@ def test_normalize_relationship_accepts_canonical_relation_types(relation_type: 
     ("raw_value", "expected"),
     [
         ("  RELATES_TO  ", RelationType.RELATES_TO.value),
-        ("related", RelationType.RELATES_TO.value),
-        ("related_to", RelationType.RELATES_TO.value),
-        ("relate_to", RelationType.RELATES_TO.value),
         ("Contradicts", RelationType.CONTRADICTS.value),
+        ("related_to", "related_to"),
     ],
 )
 def test_normalize_relationship_handles_common_aliases_and_variations(raw_value: str, expected: str) -> None:

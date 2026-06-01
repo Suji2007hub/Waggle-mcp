@@ -40,20 +40,13 @@ class RelationType(StrEnum):
     SIMILAR_TO = "similar_to"
 
 
-RELATIONSHIP_ALIASES = {
-    "related": RelationType.RELATES_TO.value,
-    "related_to": RelationType.RELATES_TO.value,
-    "relate_to": RelationType.RELATES_TO.value,
-}
-
-
 def normalize_relationship(value: Any) -> str:
     if isinstance(value, RelationType):
         return value.value
     text = str(value).strip().lower()
     if not text:
         raise ValueError("Relationship cannot be empty.")
-    return RELATIONSHIP_ALIASES.get(text, text)
+    return text
 
 
 class Node(BaseModel):
