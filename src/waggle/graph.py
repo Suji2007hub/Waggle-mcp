@@ -492,6 +492,8 @@ CREATE INDEX IF NOT EXISTS idx_transcripts_tenant_observed ON transcript_records
 CREATE INDEX IF NOT EXISTS idx_transcripts_tenant_session_turn ON transcript_records(tenant_id, session_id, turn_index);
 CREATE INDEX IF NOT EXISTS idx_transcripts_tenant_content_hash ON transcript_records(tenant_id, content_hash);
 CREATE INDEX IF NOT EXISTS idx_transcripts_tenant_turn_pair ON transcript_records(tenant_id, turn_pair_id);
+CREATE INDEX IF NOT EXISTS idx_transcripts_tenant_project ON transcript_records(tenant_id, project);
+CREATE INDEX IF NOT EXISTS idx_transcripts_tenant_agent ON transcript_records(tenant_id, agent_id);
 CREATE INDEX IF NOT EXISTS idx_nodes_source_turn_pair ON nodes(tenant_id, source_turn_pair_id);
 CREATE INDEX IF NOT EXISTS idx_api_keys_tenant ON api_keys(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash);
@@ -3787,14 +3789,19 @@ class MemoryGraph:
             elif agent_id.strip():
                 filters.append("agent_id = ?")
                 params.append(agent_id.strip())
+            # Cap the rows fetched so we don't scan and score the entire tenant.
+            # The downstream scorer uses up to max_hits results; read a generous
+            # multiple so semantic ranking still has a good pool to draw from.
+            fetch_limit = min(max(500, max_hits * 4), 5000)
             rows = connection.execute(
                 f"""
                 SELECT id, tenant_id, agent_id, project, session_id, observed_at, turn_index, role, transcript_text, embedding, metadata
                 FROM transcript_records
                 WHERE {" AND ".join(filters)}
                 ORDER BY observed_at DESC, turn_index DESC
+                LIMIT ?
                 """,
-                tuple(params),
+                (*params, fetch_limit),
             ).fetchall()
         if not rows:
             return []
@@ -3869,14 +3876,16 @@ class MemoryGraph:
             elif agent_id.strip():
                 filters.append("agent_id = ?")
                 params.append(agent_id.strip())
+            fetch_limit = 5000
             rows = connection.execute(
                 f"""
                 SELECT id, tenant_id, agent_id, project, session_id, observed_at, turn_index, role, transcript_text, embedding, metadata
                 FROM transcript_records
                 WHERE {" AND ".join(filters)}
                 ORDER BY observed_at DESC, turn_index DESC
+                LIMIT ?
                 """,
-                tuple(params),
+                (*params, fetch_limit),
             ).fetchall()
         if not rows:
             return {}
