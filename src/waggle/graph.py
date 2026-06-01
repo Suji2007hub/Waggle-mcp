@@ -10,8 +10,7 @@ import re
 import sqlite3
 import threading
 import time
-from collections.abc import Generator, Iterable
-from contextlib import contextmanager
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -142,12 +141,6 @@ SCHEMA_VERSION = 7
 
 LOGGER = logging.getLogger(__name__)
 
-
-@dataclass(frozen=True)
-class ExpansionMeta:
-    via_relation: str
-    from_node: str
-    effective_priority: float
 
 @dataclass(frozen=True)
 class ExpansionMeta:
@@ -714,7 +707,7 @@ class _ReadWriteLock:
     # ------------------------------------------------------------------
     # Write lock — exclusive, re-entrant for the owning thread
     # ------------------------------------------------------------------
-    def __enter__(self) -> "_ReadWriteLock":
+    def __enter__(self) -> _ReadWriteLock:
         tid = threading.get_ident()
         with self._cond:
             if self._write_owner == tid:
@@ -749,13 +742,13 @@ class _ReadWriteLock:
     # Read lock — shared, blocks only when a *different* thread is writing
     # ------------------------------------------------------------------
     class _ReadContext:
-        __slots__ = ("_rwl", "_is_writer")
+        __slots__ = ("_is_writer", "_rwl")
 
-        def __init__(self, rwl: "_ReadWriteLock") -> None:
+        def __init__(self, rwl: _ReadWriteLock) -> None:
             self._rwl = rwl
             self._is_writer = False
 
-        def __enter__(self) -> "_ReadWriteLock._ReadContext":
+        def __enter__(self) -> _ReadWriteLock._ReadContext:
             tid = threading.get_ident()
             with self._rwl._condition:
                 if self._rwl._write_owner == tid:
@@ -778,41 +771,7 @@ class _ReadWriteLock:
                 if self._rwl._readers == 0:
                     self._rwl._condition.notify_all()
 
-    def read(self) -> "_ReadWriteLock._ReadContext":
-        """Return a context manager that acquires a shared read lock."""
-        return self._ReadContext(self)
 
-
-# ---------------------------------------------------------------------------
-# ScoredNodeView — lightweight __slots__ struct for the scoring hot path
-# ---------------------------------------------------------------------------
-# During _sort_scored_nodes() we only need a handful of fields from each Node.
-# Using a slots dataclass avoids Pydantic's validation and per-instance __dict__
-# overhead, saving 20-35% of allocations on graphs with N > 1000 candidates.
-# The full Node object is preserved in candidate_nodes; ScoredNodeView is used
-# only as the sort key carrier within _sort_scored_nodes().
-# ---------------------------------------------------------------------------
-from dataclasses import dataclass as _dataclass
-
-
-@_dataclass(slots=True)
-class ScoredNodeView:
-    """Minimal scored representation of a Node for the ranking hot path."""
-
-    node_id: str
-    updated_at_ts: float  # pre-converted .timestamp() — avoids per-compare call
-    access_count: int
-    final_score: float = 0.0
-    label_lower: str = ""  # pre-lowercased for tiebreak sort
-
-@dataclass(slots=True)
-class ScoredNodeView:
-    """Minimal scored representation of a Node for the ranking hot path."""
-
-    node_id: str
-    updated_at_ts: float
-    final_score: float = 0.0
-    label_lower: str = ""
 
 class MemoryGraph:
     """SQLite-backed graph memory with embedding-assisted retrieval."""
