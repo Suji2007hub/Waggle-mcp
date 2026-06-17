@@ -16,11 +16,19 @@
   "documentation": "https://github.com/Abhigyan-Shekhar/Waggle-mcp/tree/main/docs/install",
   "support": "https://github.com/Abhigyan-Shekhar/Waggle-mcp/issues",
   "icon": "icon.png",
-  "keywords": ["memory", "mcp", "coding-agents", "local-first"],
+  "keywords": [
+    "memory",
+    "mcp",
+    "coding-agents",
+    "local-first"
+  ],
   "license": "Apache-2.0",
   "compatibility": {
     "claude_desktop": ">=0.9.0",
-    "platforms": ["darwin", "win32"],
+    "platforms": [
+      "darwin",
+      "win32"
+    ],
     "runtimes": {
       "python": ">=3.11"
     }
@@ -34,7 +42,9 @@
       "env": {
         "WAGGLE_DB_PATH": "${user_config.db_path}",
         "WAGGLE_DEFAULT_TENANT_ID": "${user_config.tenant_id}",
-        "WAGGLE_MODEL": "${user_config.model}"
+        "WAGGLE_MODEL": "${user_config.model}",
+        "WAGGLE_EXPORT_DIR": "${user_config.export_dir}",
+        "WAGGLE_STARTUP_MODE": "${user_config.startup_mode}"
       },
       "platform_overrides": {
         "win32": {
@@ -81,3 +91,4 @@
     }
   }
 }
+
