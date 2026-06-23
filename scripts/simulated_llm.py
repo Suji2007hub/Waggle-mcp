@@ -24,7 +24,8 @@ def main():
             if m:
                 users_with_evidence.add(int(m.group(1)))
 
-    users = sorted(list(users_with_evidence))
+    users = sorted(users_with_evidence)
+
     pairs = []
     for i in range(len(users)):
         for j in range(i+1, len(users)):

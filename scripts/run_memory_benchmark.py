@@ -16,10 +16,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from waggle.benchmark_cache import BenchmarkCache
-from waggle.embeddings import EmbeddingModel
-from waggle.graph import MemoryGraph
-from waggle.memory_benchmark import (
+from waggle.benchmark_cache import BenchmarkCache  # noqa: E402
+
+from waggle.embeddings import EmbeddingModel  # noqa: E402
+
+from waggle.graph import MemoryGraph  # noqa: E402
+
+from waggle.memory_benchmark import (  # noqa: E402
+
     index_case_into_waggle,
     load_locomo,
     load_longmemeval,

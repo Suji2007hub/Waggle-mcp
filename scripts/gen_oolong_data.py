@@ -3,8 +3,9 @@ import random
 
 # Generate 20 cases
 cases = []
-for i in range(20):
+for _i in range(20):
     # We want a large context. We will generate 100 examples per case to make it long.
+
     # 2-4 users will have numeric/location.
     users = list(range(100, 120))
     target_users = random.sample(users, random.randint(3, 5))

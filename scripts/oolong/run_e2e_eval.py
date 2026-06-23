@@ -22,8 +22,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
-from waggle.graph import MemoryGraph
-from waggle.oolong_benchmark import _index_context_window, load_oolong_examples
+from waggle.graph import MemoryGraph  # noqa: E402
+
+from waggle.oolong_benchmark import _index_context_window, load_oolong_examples  # noqa: E402
+
 
 # ---------------------------------------------------------------------------
 # Known text → category mapping (mirrors generate_oolong_dataset.py exactly)

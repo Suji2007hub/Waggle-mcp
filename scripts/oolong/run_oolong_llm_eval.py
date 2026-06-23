@@ -49,7 +49,8 @@ REAL_DATASET   = ROOT / "benchmarks/data/oolong_real_clean_30.jsonl"  # clean: 1
 DB_PATH = ROOT / "benchmarks/data/llm_eval.db"
 
 # RLM paper reported numbers (arXiv:2511.02817, Table 2 / Figure 3)
-# GPT-4o-mini on oolong-synth small context window subset ≈ 38–42%
+# GPT-4o-mini on oolong-synth small context window subset ≈ 38-42%
+
 # We use 42% as RLM-equivalent upper bound for fair comparison
 RLM_REPORTED_ACCURACY = 42.0
 
@@ -267,7 +268,8 @@ def build_graph(pairs_dataset: str, real_dataset: str, db_path: str):
         for line in f:
             row = json.loads(line)
             real_examples.append(row)
-            node_id = graph.add_node(
+            _node_id = graph.add_node(
+
                 label=f"oolong-synth-{row['example_id']}",
                 content=row["context_window_text"],
                 node_type="note",

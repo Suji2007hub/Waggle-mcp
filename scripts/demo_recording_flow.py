@@ -90,8 +90,11 @@ async def call(session: ClientSession, tool: str, arguments: dict[str, Any], *, 
 
 async def session_one() -> tuple[dict[str, str], dict[str, Any]]:
     line("STEP 1 - VERIFY TOOL AVAILABILITY")
-    async with await open_session(DB_PATH) as (read_stream, write_stream):
-        async with ClientSession(read_stream, write_stream) as session:
+    async with await open_session(DB_PATH) as (read_stream, write_stream), ClientSession(
+        read_stream,
+        write_stream,
+    ) as session:
+
             init_result = await session.initialize()
             say(f"Connected to MCP server `{init_result.serverInfo.name}` over stdio.")
 
@@ -351,8 +354,11 @@ async def session_one() -> tuple[dict[str, str], dict[str, Any]]:
 
 async def session_two() -> None:
     line("STEP 10 - PERSISTENCE ACROSS SESSIONS")
-    async with await open_session(DB_PATH) as (read_stream, write_stream):
-        async with ClientSession(read_stream, write_stream) as session:
+    async with await open_session(DB_PATH) as (read_stream, write_stream), ClientSession(
+        read_stream,
+        write_stream,
+    ) as session:
+
             await session.initialize()
             say("Started a fresh MCP session against the same graph database.")
             await call(
@@ -371,8 +377,11 @@ async def session_two() -> None:
 
 async def restore_demo() -> None:
     line("STEP 11 - IMPORT BACKUP INTO A FRESH GRAPH")
-    async with await open_session(RESTORED_DB_PATH) as (read_stream, write_stream):
-        async with ClientSession(read_stream, write_stream) as session:
+    async with await open_session(RESTORED_DB_PATH) as (read_stream, write_stream), ClientSession(
+        read_stream,
+        write_stream,
+    ) as session:
+
             await session.initialize()
             await call(
                 session,
