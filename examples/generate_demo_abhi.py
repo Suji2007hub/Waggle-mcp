@@ -24,9 +24,10 @@ SRC = REPO_ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from waggle.embeddings import EmbeddingModel
-from waggle.graph import MemoryGraph
-from waggle.models import NodeType, RelationType
+# Import after sys.path manipulation to satisfy Ruff E402.
+from waggle.embeddings import EmbeddingModel  # noqa: E402
+from waggle.graph import MemoryGraph  # noqa: E402
+from waggle.models import NodeType, RelationType  # noqa: E402
 
 OUTPUT_PATH = REPO_ROOT / "examples" / "demo.abhi"
 

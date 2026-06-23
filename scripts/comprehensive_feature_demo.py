@@ -123,8 +123,8 @@ async def run_demo() -> tuple[list[dict[str, Any]], str]:
         env=build_env(DB_PATH),
     )
 
-    async with stdio_client(server_params) as (read_stream, write_stream):
-        async with ClientSession(read_stream, write_stream) as session:
+    async with stdio_client(server_params) as (read_stream, write_stream), ClientSession(read_stream, write_stream) as session:
+
             init = await session.initialize()
             logs.append({
                 "tool": "initialize",
@@ -310,8 +310,8 @@ async def run_demo() -> tuple[list[dict[str, Any]], str]:
         cwd=str(ROOT),
         env=build_env(RESTORE_DB_PATH),
     )
-    async with stdio_client(restore_params) as (read_stream, write_stream):
-        async with ClientSession(read_stream, write_stream) as session:
+    async with stdio_client(restore_params) as (read_stream, write_stream), ClientSession(read_stream, write_stream) as session:
+
             await session.initialize()
             logs.append(await call_tool(session, "import_graph_backup", {"input_path": str(GRAPH_BACKUP)}))
             logs.append(await call_tool(session, "get_stats", {}))
@@ -329,8 +329,9 @@ async def run_demo() -> tuple[list[dict[str, Any]], str]:
 def build_report(logs: list[dict[str, Any]], features_output: str, model_name: str) -> str:
     generated_at = datetime.now(UTC).isoformat()
     total = len(logs)
-    failures = sum(1 for l in logs if l.get("is_error"))
-    unique_tools = sorted({l.get("tool", "") for l in logs})
+    failures = sum(1 for entry in logs if entry.get("is_error"))
+    unique_tools = sorted({entry.get("tool", "") for entry in logs})
+
 
     lines: list[str] = []
     lines.append("# Waggle MCP Comprehensive Feature Demo")

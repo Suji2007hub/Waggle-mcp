@@ -83,7 +83,7 @@ def main():
     counting_rows = collected["counting"][:TARGET_PER_GROUP]
     all_rows = user_rows + counting_rows
 
-    total_unique_cw = len(set(r["raw_context_window_id"] for r in all_rows))
+    total_unique_cw = len({r["raw_context_window_id"] for r in all_rows})
 
     out = []
     for i, row in enumerate(all_rows):
