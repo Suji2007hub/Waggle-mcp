@@ -60,6 +60,8 @@ waggle-mcp doctor
 
 These steps are intended to work on a clean macOS, Linux, or Windows checkout with Python 3.11+ and Git installed:
 
+For a complete list of supported environment variables and configuration options, see [docs/environment-variables.md](docs/environment-variables.md).
+
 ```bash
 git clone https://github.com/Abhigyan-Shekhar/Waggle-mcp.git
 cd Waggle-mcp
